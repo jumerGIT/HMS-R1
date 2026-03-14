@@ -67,17 +67,25 @@ WSGI_APPLICATION = 'hms_project.wsgi.application'
 
 DB_LIVE = os.environ.get('DB_LIVE', 'False')
 
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
+    }
+}
+
 if DB_LIVE == 'True':
     import dj_database_url
-    DATABASES["default"] = dj_database_url.parse(os.environ.get("DATABASE_URL"))
-    DATABASES["default"]["ENGINE"] = "django.db.backends.postgresql"
-else:
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3',
+    DATABASES["default"] = dj_database_url.parse(os.environ.get("DATABASE_URL") or "")
+    if not DATABASES["default"]:
+        DATABASES["default"] = {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': os.getenv('DB_NAME'),
+            'USER': os.getenv('DB_USER'),
+            'PASSWORD': os.getenv('DB_PASSWORD'),
+            'HOST': os.getenv('DB_HOST'),
+            'PORT': os.getenv('DB_PORT'),
         }
-    }
 # Note: Use Railway DATABASE_URL plugin. Set DB_LIVE=True
 
 AUTH_PASSWORD_VALIDATORS = [
