@@ -1,0 +1,9 @@
+{
+  "build": {
+    "builder": "NIXPACKS"
+  },
+  "deploy": {
+    "startCommand": "gunicorn hms_project.wsgi --log-file -",
+    "healthcheckPath": "/admin/"
+  }
+}
