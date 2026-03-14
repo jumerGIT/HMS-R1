@@ -1,0 +1,437 @@
+{% extends 'housing/base.html' %}
+{% block title %}Beneficiaries – Barangay Housing Village{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css">
+<link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css">
+<style>
+.bv-avatar {
+  width:40px; height:40px; object-fit:cover; border-radius:50%;
+  border:2px solid #e2e8f0; flex-shrink:0;
+}
+.bv-avatar-placeholder {
+  width:40px; height:40px; border-radius:50%; flex-shrink:0;
+  background:#e2e8f0; display:flex; align-items:center; justify-content:center;
+  color:#94a3b8; font-size:1rem;
+}
+.site-badge {
+  font-size:.7rem; font-weight:700; padding:.25rem .6rem;
+  border-radius:20px; letter-spacing:.04em;
+}
+.site-1 { background:#dbeafe; color:#1d4ed8; }
+.site-2 { background:#fef9c3; color:#854d0e; }
+.role-badge {
+  font-size:.68rem; font-weight:600; padding:.18rem .5rem;
+  border-radius:20px;
+}
+.role-head   { background:#dcfce7; color:#166534; }
+.role-member { background:#f1f5f9; color:#475569; }
+
+/* Modal details */
+.detail-section-label {
+  font-size:.68rem; font-weight:700; text-transform:uppercase;
+  letter-spacing:.08em; color:#94a3b8; margin-bottom:.5rem;
+}
+.detail-grid {
+  display:grid; grid-template-columns:1fr 1fr; gap:.5rem .75rem;
+}
+.detail-item { font-size:.83rem; }
+.detail-item .dk { color:#94a3b8; font-size:.7rem; }
+.detail-item .dv { font-weight:600; color:#1e293b; }
+.modal-photo {
+  width:72px; height:72px; object-fit:cover; border-radius:12px;
+  border:3px solid #e2e8f0;
+}
+.modal-photo-placeholder {
+  width:72px; height:72px; border-radius:12px;
+  background:#f1f5f9; display:flex; align-items:center; justify-content:center;
+  color:#cbd5e1; font-size:2rem; flex-shrink:0;
+}
+.edit-section {
+  background:#f8fafc; border-radius:10px; padding:1rem;
+  border:1px solid #e2e8f0; margin-top:.75rem;
+}
+#bvModal .modal-content { border-radius:16px; border:none; box-shadow:0 8px 32px rgba(0,0,0,.15); }
+#bvModal .modal-header { border-bottom:1px solid #f1f5f9; padding-bottom:.75rem; }
+#bvModal .modal-footer { border-top:1px solid #f1f5f9; }
+.save-feedback { font-size:.8rem; display:none; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+  <div>
+    <h2><i class="bi bi-people-fill me-2"></i>Beneficiaries</h2>
+    <p>All individuals currently residing in allocated housing units</p>
+  </div>
+  <div class="d-flex gap-2">
+    <span class="badge bg-primary fs-6 px-3 py-2">
+      <i class="bi bi-person-check me-1"></i>{{ rows|length }} Individual(s)
+    </span>
+  </div>
+</div>
+
+<div class="card tbl-card">
+  <div class="card-body">
+    <table id="beneficiariesTable" class="table table-hms mb-0" style="width:100%">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Role</th>
+          <th>House</th>
+          <th>Site</th>
+          <th>Birthdate</th>
+          <th>Address</th>
+          <th>Allocated On</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        <tr>
+          <!-- Name -->
+          <td>
+            <div class="d-flex align-items-center gap-2">
+              {% if row.is_head and row.app and row.app.hh_image %}
+              <img src="{{ row.app.hh_image.url }}" alt="" class="bv-avatar">
+              {% else %}
+              <div class="bv-avatar-placeholder"><i class="bi bi-person"></i></div>
+              {% endif %}
+              <div>
+                <div class="fw-semibold person-name" style="font-size:.88rem;">
+                  {% if row.lname %}{{ row.lname }}, {{ row.fname }}{% if row.mname %} {{ row.mname }}{% endif %}
+                  {% else %}{{ row.house.allocated_to.get_full_name|default:row.house.allocated_to.username }}
+                  {% endif %}
+                </div>
+                {% if row.is_head %}
+                <div class="text-muted" style="font-size:.72rem;">
+                  <i class="bi bi-person-badge me-1"></i>{{ row.house.allocated_to.username }}
+                </div>
+                {% endif %}
+              </div>
+            </div>
+          </td>
+
+          <!-- Role -->
+          <td>
+            {% if row.is_head %}
+            <span class="role-badge role-head"><i class="bi bi-house-heart me-1"></i>Household Head</span>
+            {% else %}
+            <span class="role-badge role-member">{{ row.role_label }}</span>
+            {% endif %}
+          </td>
+
+          <!-- House -->
+          <td><span class="fw-bold">{{ row.house.house_number }}</span></td>
+
+          <!-- Site -->
+          <td><span class="site-badge site-{{ row.house.site }}">Site {{ row.house.site }}</span></td>
+
+          <!-- Birthdate -->
+          <td class="text-muted small">{% if row.bdate %}{{ row.bdate|date:"M d, Y" }}{% else %}—{% endif %}</td>
+
+          <!-- Address -->
+          <td style="max-width:180px; font-size:.82rem;">
+            {% if row.app %}{{ row.app.current_address|truncatechars:55 }}{% else %}—{% endif %}
+          </td>
+
+          <!-- Allocated date -->
+          <td class="text-muted small">{{ row.house.allocation_date|date:"M d, Y"|default:"—" }}</td>
+
+          <!-- Actions -->
+          <td>
+            <button type="button" class="btn-icon btn-icon-view btn-details"
+              title="View Details"
+              data-type="{% if row.is_head %}head{% else %}member{% endif %}"
+              data-pk="{% if row.is_head %}{{ row.app.pk }}{% else %}{{ row.member.pk }}{% endif %}"
+              data-fname="{{ row.fname|default:'' }}"
+              data-mname="{{ row.mname|default:'' }}"
+              data-lname="{{ row.lname|default:'' }}"
+              data-role="{{ row.role_label }}"
+              data-bdate="{% if row.bdate %}{{ row.bdate|date:'M d, Y' }}{% endif %}"
+              data-house="{{ row.house.house_number }}"
+              data-site="{{ row.house.site }}"
+              data-allocated="{{ row.house.allocation_date|date:'M d, Y'|default:'' }}"
+              {% if row.is_head %}
+              data-civil="{% if row.app %}{{ row.app.get_civil_status_display }}{% endif %}"
+              data-address="{% if row.app %}{{ row.app.current_address|default:'' }}{% endif %}"
+              data-family="{% if row.app %}{{ row.app.family_size }}{% endif %}"
+              data-photo="{% if row.app and row.app.hh_image %}{{ row.app.hh_image.url }}{% endif %}"
+              data-username="{{ row.house.allocated_to.username }}"
+              {% endif %}
+            ><i class="bi bi-person-lines-fill"></i></button>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ── Details Modal ── -->
+<div class="modal fade" id="bvModal" tabindex="-1" aria-labelledby="bvModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:520px;">
+    <div class="modal-content">
+
+      <div class="modal-header">
+        <div class="d-flex align-items-center gap-3 w-100">
+          <div id="bvPhoto">
+            <div class="modal-photo-placeholder"><i class="bi bi-person"></i></div>
+          </div>
+          <div class="flex-fill">
+            <h5 class="mb-0 fw-bold" id="bvModalLabel" style="font-size:1rem;">—</h5>
+            <div id="bvRoleBadge" class="mt-1"></div>
+          </div>
+        </div>
+        <button type="button" class="btn-close ms-2" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+
+      <div class="modal-body">
+        <!-- House info -->
+        <div class="detail-section-label"><i class="bi bi-house me-1"></i>Housing Details</div>
+        <div class="detail-grid mb-3">
+          <div class="detail-item">
+            <div class="dk">House No.</div>
+            <div class="dv" id="bvHouse">—</div>
+          </div>
+          <div class="detail-item">
+            <div class="dk">Site</div>
+            <div class="dv" id="bvSite">—</div>
+          </div>
+          <div class="detail-item">
+            <div class="dk">Allocated On</div>
+            <div class="dv" id="bvAllocated">—</div>
+          </div>
+          <div class="detail-item" id="bvFamilyWrap">
+            <div class="dk">Household Size</div>
+            <div class="dv" id="bvFamily">—</div>
+          </div>
+        </div>
+
+        <!-- Personal info -->
+        <div class="detail-section-label"><i class="bi bi-person-vcard me-1"></i>Personal Details</div>
+        <div class="detail-grid mb-2">
+          <div class="detail-item">
+            <div class="dk">Birthdate</div>
+            <div class="dv" id="bvBdate">—</div>
+          </div>
+          <div class="detail-item" id="bvCivilWrap">
+            <div class="dk">Civil Status</div>
+            <div class="dv" id="bvCivil">—</div>
+          </div>
+          <div class="detail-item" id="bvUsernameWrap">
+            <div class="dk">Account</div>
+            <div class="dv" id="bvUsername">—</div>
+          </div>
+        </div>
+        <div class="detail-item mb-3" id="bvAddressWrap">
+          <div class="dk">Address</div>
+          <div class="dv" id="bvAddress" style="font-size:.85rem; line-height:1.4;">—</div>
+        </div>
+
+        <!-- Edit name -->
+        <div class="edit-section">
+          <div class="detail-section-label mb-2"><i class="bi bi-pencil me-1"></i>Edit Name</div>
+          <div class="row g-2">
+            <div class="col-12 col-sm-4">
+              <label class="form-label" style="font-size:.75rem;">Last Name</label>
+              <input type="text" class="form-control form-control-sm" id="editLname" placeholder="Last name">
+            </div>
+            <div class="col-12 col-sm-4">
+              <label class="form-label" style="font-size:.75rem;">First Name</label>
+              <input type="text" class="form-control form-control-sm" id="editFname" placeholder="First name">
+            </div>
+            <div class="col-12 col-sm-4">
+              <label class="form-label" style="font-size:.75rem;">Middle Name</label>
+              <input type="text" class="form-control form-control-sm" id="editMname" placeholder="Middle name">
+            </div>
+          </div>
+          <div class="d-flex align-items-center gap-2 mt-2">
+            <button class="btn btn-sm btn-primary px-3" id="saveNameBtn">
+              <i class="bi bi-check-lg me-1"></i>Save Name
+            </button>
+            <span class="save-feedback text-success" id="saveFeedbackOk"><i class="bi bi-check-circle me-1"></i>Saved!</span>
+            <span class="save-feedback text-danger" id="saveFeedbackErr"><i class="bi bi-exclamation-circle me-1"></i><span id="saveErrMsg"></span></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
+<script>
+$(document).ready(function () {
+  $('#beneficiariesTable').DataTable({
+    dom: "<'dt-top'lf><'dt-buttons mb-2'B><'table-responsive'tr><'dt-bottom'ip>",
+    pageLength: 10,
+    lengthMenu: [[10, 25, 50, -1], [10, 25, 50, 'All']],
+    order: [[3, 'asc'], [2, 'asc'], [1, 'asc']],
+    columnDefs: [{ orderable: false, targets: 7 }],
+    buttons: [
+      { extend: 'csv', text: '<i class="bi bi-file-earmark-spreadsheet me-1"></i>CSV', className: 'export-btn export-csv', exportOptions: { columns: ':not(:last-child)' } },
+      { extend: 'pdf', text: '<i class="bi bi-file-earmark-pdf me-1"></i>PDF', className: 'export-btn export-pdf', exportOptions: { columns: ':not(:last-child)' }, orientation: 'landscape', pageSize: 'A4' },
+    ],
+    language: {
+      search: '',
+      searchPlaceholder: 'Search beneficiaries…',
+      lengthMenu: 'Show _MENU_',
+      info: 'Showing _START_–_END_ of _TOTAL_ beneficiaries',
+      paginate: { previous: '‹', next: '›' },
+      emptyTable: 'No beneficiaries found.',
+    },
+  });
+});
+
+// ── Modal logic ──────────────────────────────────────────────────────────────
+let _currentType = null;
+let _currentPk   = null;
+let _currentTr   = null;   // the <tr> row to update name in-place
+
+document.querySelectorAll('.btn-details').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    const d = btn.dataset;
+    _currentType = d.type;
+    _currentPk   = d.pk;
+    _currentTr   = btn.closest('tr');
+
+    // Header
+    const fullName = d.lname
+      ? (d.lname + ', ' + d.fname + (d.mname ? ' ' + d.mname : ''))
+      : '—';
+    document.getElementById('bvModalLabel').textContent = fullName;
+
+    // Role badge
+    const roleEl = document.getElementById('bvRoleBadge');
+    if (d.type === 'head') {
+      roleEl.innerHTML = '<span class="role-badge role-head"><i class="bi bi-house-heart me-1"></i>Household Head</span>';
+    } else {
+      roleEl.innerHTML = '<span class="role-badge role-member">' + (d.role || '—') + '</span>';
+    }
+
+    // Photo
+    const photoWrap = document.getElementById('bvPhoto');
+    if (d.photo) {
+      photoWrap.innerHTML = '<img src="' + d.photo + '" class="modal-photo" alt="">';
+    } else {
+      photoWrap.innerHTML = '<div class="modal-photo-placeholder"><i class="bi bi-person"></i></div>';
+    }
+
+    // Housing details
+    document.getElementById('bvHouse').textContent     = d.house     || '—';
+    document.getElementById('bvSite').textContent      = 'Site ' + (d.site || '—');
+    document.getElementById('bvAllocated').textContent = d.allocated || '—';
+
+    // Personal details
+    document.getElementById('bvBdate').textContent = d.bdate || '—';
+
+    // Head-only fields
+    const isHead = d.type === 'head';
+    document.getElementById('bvFamilyWrap').style.display   = isHead ? '' : 'none';
+    document.getElementById('bvCivilWrap').style.display    = isHead ? '' : 'none';
+    document.getElementById('bvUsernameWrap').style.display = isHead ? '' : 'none';
+    document.getElementById('bvAddressWrap').style.display  = isHead ? '' : 'none';
+
+    if (isHead) {
+      document.getElementById('bvFamily').textContent   = (d.family  || '—') + ' person(s)';
+      document.getElementById('bvCivil').textContent    = d.civil    || '—';
+      document.getElementById('bvUsername').textContent = d.username || '—';
+      document.getElementById('bvAddress').textContent  = d.address  || '—';
+    }
+
+    // Pre-fill edit fields
+    document.getElementById('editLname').value = d.lname || '';
+    document.getElementById('editFname').value = d.fname || '';
+    document.getElementById('editMname').value = d.mname || '';
+
+    // Reset feedback
+    document.getElementById('saveFeedbackOk').style.display  = 'none';
+    document.getElementById('saveFeedbackErr').style.display = 'none';
+
+    new bootstrap.Modal(document.getElementById('bvModal')).show();
+  });
+});
+
+// ── Save name ────────────────────────────────────────────────────────────────
+document.getElementById('saveNameBtn').addEventListener('click', function() {
+  const btn = this;
+  const fname = document.getElementById('editFname').value.trim();
+  const mname = document.getElementById('editMname').value.trim();
+  const lname = document.getElementById('editLname').value.trim();
+
+  if (!fname || !lname) {
+    document.getElementById('saveErrMsg').textContent = 'First and last name are required.';
+    document.getElementById('saveFeedbackErr').style.display = 'inline-flex';
+    document.getElementById('saveFeedbackOk').style.display  = 'none';
+    return;
+  }
+
+  const url = _currentType === 'head'
+    ? '/housed/hh/' + _currentPk + '/update-name/'
+    : '/housed/member/' + _currentPk + '/update-name/';
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving…';
+
+  fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': '{{ csrf_token }}',
+    },
+    body: JSON.stringify({ fname, mname, lname }),
+  })
+  .then(r => r.json())
+  .then(data => {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Save Name';
+    if (data.ok) {
+      // Update modal header
+      const newName = lname + ', ' + fname + (mname ? ' ' + mname : '');
+      document.getElementById('bvModalLabel').textContent = newName;
+
+      // Update table cell in-place
+      if (_currentTr) {
+        const nameDiv = _currentTr.querySelector('.person-name');
+        if (nameDiv) nameDiv.textContent = newName;
+      }
+
+      // Update the button's data attributes so re-opening reflects new name
+      const detailBtn = _currentTr ? _currentTr.querySelector('.btn-details') : null;
+      if (detailBtn) {
+        detailBtn.dataset.fname = fname;
+        detailBtn.dataset.mname = mname;
+        detailBtn.dataset.lname = lname;
+      }
+
+      document.getElementById('saveFeedbackOk').style.display  = 'inline-flex';
+      document.getElementById('saveFeedbackErr').style.display = 'none';
+    } else {
+      document.getElementById('saveErrMsg').textContent = data.error || 'Save failed.';
+      document.getElementById('saveFeedbackErr').style.display = 'inline-flex';
+      document.getElementById('saveFeedbackOk').style.display  = 'none';
+    }
+  })
+  .catch(() => {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Save Name';
+    document.getElementById('saveErrMsg').textContent = 'Network error.';
+    document.getElementById('saveFeedbackErr').style.display = 'inline-flex';
+  });
+});
+</script>
+{% endblock %}

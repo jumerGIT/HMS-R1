@@ -1,0 +1,652 @@
+{% extends "housing/base.html" %}
+{% block title %}Village Map – HMS{% endblock %}
+
+{% block extra_head %}
+<style>
+.map-wrap {
+  position: relative;
+  width: 100%;
+  background: #f8fafc;
+  border-radius: 0 0 8px 8px;
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+}
+.map-wrap svg {
+  width: 100%;
+  display: block;
+  cursor: grab;
+}
+.map-wrap svg.panning { cursor: grabbing; }
+
+/* Zoom toolbar */
+.zoom-toolbar {
+  position: absolute;
+  bottom: 14px;
+  right: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  z-index: 10;
+}
+.zoom-btn {
+  width: 34px; height: 34px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #334155;
+  font-size: 1.1rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 1px 4px rgba(0,0,0,.12);
+  transition: background .15s;
+}
+.zoom-btn:hover { background: #f1f5f9; }
+.zoom-btn:active { background: #e2e8f0; }
+
+.house-path {
+  cursor: pointer;
+  opacity: 0.82;
+  transition: opacity 0.1s;
+}
+.house-path:hover { opacity: 1; stroke: #fff; stroke-width: 1.5px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3">
+  <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+    <h4 class="mb-0"><i class="bi bi-map me-2"></i>Village Map</h4>
+    <div class="d-flex gap-3 align-items-center">
+      <span class="badge fs-6" style="background:#3D3DF9;">&#9632; Available</span>
+      <span class="badge fs-6" style="background:#e9573f;">&#9632; Occupied</span>
+      <small class="text-muted"><i class="bi bi-mouse2 me-1"></i>Scroll to zoom · Drag to pan</small>
+    </div>
+  </div>
+
+  <!-- Site tabs -->
+  <ul class="nav nav-tabs" id="mapTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+      <button class="nav-link active" id="site1-tab" data-bs-toggle="tab"
+              data-bs-target="#site1" type="button" role="tab">
+        Brgy. Old Poblacion <span class="badge bg-secondary ms-1">{{ site1_houses|length }}</span>
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="site2-tab" data-bs-toggle="tab"
+              data-bs-target="#site2" type="button" role="tab">
+        Brgy. Washington <span class="badge bg-secondary ms-1">{{ site2_houses|length }}</span>
+      </button>
+    </li>
+  </ul>
+
+  <div class="tab-content border border-top-0 rounded-bottom bg-white">
+
+    <!-- ===== SITE 1 ===== -->
+    <div class="tab-pane fade show active" id="site1" role="tabpanel">
+      <div class="map-wrap" style="height:640px;">
+        <svg id="svg-site1" viewBox="0 0 560 570"
+             xmlns="http://www.w3.org/2000/svg"
+             xmlns:xlink="http://www.w3.org/1999/xlink">
+
+          <!-- Background -->
+          <g id="base">
+            <g>
+              <polygon fill="#C6DB9C" points="61,81 280,14.5 371,9 462.5,5 480,68.5 491.5,118 500,171 515.5,251.5 485.5,336 445.5,418.5 373.5,517 311.5,527 256.5,533 211,539.5 104.5,556"/>
+              <g>
+                <polyline fill="none" stroke="#A0ABB5" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" points="61.68,88.47 61,81 68.18,78.82"/>
+                <polyline fill="none" stroke="#A0ABB5" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="14.6899,4.8966" points="72.86,77.4 280,14.5 371,9 452.56,5.43"/>
+                <polyline fill="none" stroke="#A0ABB5" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" points="455.01,5.33 462.5,5 464.49,12.23"/>
+                <polyline fill="none" stroke="#A0ABB5" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="15.1409,5.047" points="465.83,17.1 480,68.5 491.5,118 500,171 515.5,251.5 485.5,336 445.5,418.5 373.5,517 311.5,527 256.5,533 211,539.5 114.41,554.47"/>
+                <polyline fill="none" stroke="#A0ABB5" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" points="111.91,554.85 104.5,556 103.82,548.53"/>
+                <line fill="none" stroke="#A0ABB5" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="14.9028,4.9676" x1="103.36" y1="543.58" x2="61.91" y2="90.94"/>
+              </g>
+            </g>
+          </g>
+
+          <!-- Green block polygons -->
+          <g id="BLOCKS_1_">
+            <polygon fill="#83C142" stroke="#8CC152" stroke-miterlimit="5" points="65.167,84.167 85.833,77.833 102.833,263.833 98.833,269.833 83.672,271.167"/>
+            <polygon fill="#83C142" stroke="#8CC152" stroke-miterlimit="5" points="84,294.5 100.833,292.834 106.167,297.167 125.167,507.501 123.5,510.501 104.583,513.834"/>
+            <polygon fill="#83C142" stroke="#8CC152" stroke-miterlimit="5" points="99.5,73.5 282.5,18.834 459.5,9.834 465.167,29.5 287.833,37.834 104.5,93.834 101.167,91.834"/>
+            <polygon fill="#83C142" stroke="#8CC152" stroke-miterlimit="5" points="102.833,111.834 105.833,109.167 146.833,96.167 152.833,147.757 107.167,151.5"/>
+            <polygon fill="#83C142" stroke="#8CC152" stroke-miterlimit="5" points="107.833,156.5 152.833,152.834 164.167,264.167 122.833,268.167 117.5,262.834"/>
+            <polygon fill="#83C142" stroke="#8CC152" stroke-miterlimit="5" points="155.833,93.834 161.5,147.757 206.5,143.834 199.833,81.5"/>
+            <polygon fill="#83C142" stroke="#8CC152" stroke-miterlimit="5" points="162.167,151.5 206.5,147.757 218.167,259.167 172.833,263.5"/>
+            <polygon fill="#83C142" stroke="#8CC152" stroke-miterlimit="5" points="208.833,79.167 249.5,65.833 252.5,69.167 259.833,138.833 215.5,143.167"/>
+            <polygon fill="#83C142" stroke="#8CC152" stroke-miterlimit="5" points="215.833,147.757 259.833,143.167 271.833,249.5 268.167,254.9 228.167,258.167"/>
+            <polygon fill="#83C142" stroke="#8CC152" stroke-miterlimit="5" points="269.5,62.5 271.833,59.167 290.5,53 312.75,51.834 322.75,131.75 278,137.25"/>
+            <polygon fill="#83C142" stroke="#8CC152" stroke-miterlimit="5" points="278.25,141.75 322.75,137.25 336.25,247.5 295,251.75 290.25,247.5"/>
+            <polygon fill="#83C142" stroke="#8CC152" stroke-miterlimit="5" points="332.75,133.5 377.5,129 391.75,242.25 346,246.5"/>
+            <polygon fill="#83C142" stroke="#8CC152" stroke-miterlimit="5" points="376.5,123.834 331.75,129 322.75,53.25 324.75,50 367,48.25"/>
+            <polygon fill="#83C142" stroke="#8CC152" stroke-miterlimit="5" points="375.833,48.25 419.5,45.667 421.667,48.25 431.167,119.167 386.167,123.5"/>
+            <polygon fill="#83C142" stroke="#8CC152" stroke-miterlimit="5" points="386.833,129 431.167,124 445.5,232.667 441.667,238 400.667,241.5"/>
+            <polygon fill="#83C142" stroke="#8CC152" stroke-miterlimit="5" points="435.834,47 438.167,44.667 470.334,43.667 476.667,70 440.167,73"/>
+            <polygon fill="#83C142" stroke="#8CC152" stroke-miterlimit="5" points="439.823,83.167 478.898,80 489.685,123.5 446.012,126.333"/>
+            <polygon fill="#83C142" stroke="#8CC152" stroke-miterlimit="5" points="446.553,135.667 490.919,133.167 499.326,177.667 452.636,181"/>
+            <polygon fill="#83C142" stroke="#8CC152" stroke-miterlimit="5" points="453.194,190.333 498.791,186.833 507.667,231.5 462.592,235.833 457.719,230.667"/>
+            <polygon fill="#83C142" stroke="#8CC152" stroke-miterlimit="5" points="121.25,296 125.167,291 166,287.5 172.75,356.25 127.5,360.5"/>
+            <polygon fill="#83C142" stroke="#8CC152" stroke-miterlimit="5" points="175.25,286.25 220.25,282 227.5,350 182.5,354.5"/>
+            <polygon fill="#83C142" stroke="#8CC152" stroke-miterlimit="5" points="230.167,281.215 270.5,277 276,281.215 282.667,345.789 237.333,349.667"/>
+            <polygon fill="#83C142" stroke="#8CC152" stroke-miterlimit="5" points="128.167,370.001 283.5,355.834 298,486.334 143,507.501 140.333,505.667"/>
+            <polygon fill="#83C142" stroke="#8CC152" stroke-miterlimit="5" points="294,280 298,275.5 339.25,271.25 352.5,385 306.5,389.25"/>
+            <polygon fill="#83C142" stroke="#8CC152" stroke-miterlimit="5" points="306.75,394 352.5,390.75 361.25,463.5 348.25,479.75 319.25,484 316,481"/>
+            <polygon fill="#83C142" stroke="#8CC152" stroke-miterlimit="5" points="348.5,270 394.5,266 408.75,402.25 371.75,450.25 368.25,450.25"/>
+            <polygon fill="#83C142" stroke="#8CC152" stroke-miterlimit="5" points="403.667,265 444.5,261.333 448.833,265 454.167,311.833 418.833,386.167 416,384.833"/>
+            <polygon fill="#83C142" stroke="#8CC152" stroke-miterlimit="5" points="460.937,263.667 465.097,258.833 510.167,254.167 492.313,302.167 465.271,305.333"/>
+            <polygon fill="#83C142" stroke="#8CC152" stroke-miterlimit="5" points="469,314.833 490.333,312 479.666,340 441.5,415.75 370.25,512.25 108.5,550 106.25,528.75 355.75,495 425,405.25"/>
+          </g>
+
+          <!-- Playgrounds -->
+          <g id="PLAYGROUNDS">
+            <path fill="#A0D468" d="M246.09,414.44c-0.6-2.29,2.04-2.53,2.04-2.53l15.03-1.08c2.52,0,2.4,1.92,2.4,1.92l7.81,72.18c-0.12,1.92-2.28,2.04-2.28,2.04l-35.58,4.44c-1.56-0.12-1.68-1.562-1.68-1.562l-4.45-43.398c0.48-1.92,2.04-1.8,2.04-1.8l15.39-1.682c2.4-0.358,2.16-1.438,2.16-1.438L246.09,414.44z"/>
+            <path fill="#A0D468" d="M244.38,413.26c0-1.88-2-1.63-2-1.63l-15.63,1.63c-1.83,0.32-1.17,1.48-1.17,1.48l2.79,28.08c0.21,1.738,1.46,1.25,1.46,1.25l16.33-1.74c1.17-0.42,1.08-1.42,1.08-1.42L244.38,413.26z"/>
+            <path fill="#A0D468" d="M135.44,424.51c0.05-2.2,1.8-2.278,1.8-2.278l83.47-8.4c1.59-0.08,1.75,0.979,1.75,0.979l7.24,75.66c0.08,1.142-1.43,1.71-1.43,1.71l-83.15,12.23c-1.91-0.57-2.07-1.79-2.07-1.79L135.44,424.51z"/>
+            <path fill="#A0D468" d="M130.25,375.01c0.17-3.26,2.31-3.1,2.31-3.1l124.16-12.061c2.65,0.159,2.65,1.961,2.65,1.961l4.79,44.328c0,1.63-1.98,1.79-1.98,1.79L136.7,420c-1.82-0.16-1.65-1.3-1.65-1.3L130.25,375.01z"/>
+            <path fill="#A0D468" d="M410.5,316.83c-0.5-2.83,2-2.67,2-2.67l38.83-4c2.33,1,1.17,4.17,1.17,4.17L419.67,382c-1.67,1.67-2,0.17-2,0.17L410.5,316.83z"/>
+            <path fill="#A0D468" d="M157.13,96.38C157.38,94.13,159,94,159,94l37-11.25c2.5-0.13,2.75,1.5,2.75,1.5l3.38,30.63c-0.38,1.5-1.88,1.38-1.88,1.38l-39,3.25c-1.63,0-1.63-1-1.63-1L157.13,96.38z"/>
+            <path fill="#A0D468" d="M437.38,47.63c0.25-1.75,1.5-2,1.5-2L467,44.5c1.88,1,1.63,1.88,1.63,1.88l5.5,20.75c-0.13,1.75-1.63,2.25-1.63,2.25l-29.38,2.13c-1.88-0.38-2.25-1.5-2.25-1.5L437.38,47.63z"/>
+          </g>
+
+          <!-- Lots -->
+          <g id="LOTS">
+            <rect x="134.201" y="371.896" transform="matrix(0.9951 -0.0992 0.0992 0.9951 -37.6688 21.4337)" fill="#48CFAD" width="125.008" height="35.242"/>
+            <rect x="146.952" y="433.952" transform="matrix(0.994 -0.1096 0.1096 0.994 -49.2233 22.761)" fill="#48CFAD" width="71.003" height="50.462"/>
+            <rect x="230.698" y="413.835" transform="matrix(0.9946 -0.1035 0.1035 0.9946 -43.0148 26.8354)" fill="#48CFAD" width="12.67" height="27.998"/>
+            <rect x="96.829" y="409.977" transform="matrix(0.996 -0.0898 0.0898 0.996 -37.2856 11.1612)" fill="#48CFAD" width="17.151" height="20.002"/>
+            <rect x="86.987" y="296.094" transform="matrix(0.9949 -0.1012 0.1012 0.9949 -30.4381 11.1924)" fill="#48CFAD" width="16.212" height="19.002"/>
+            <rect x="81.982" y="249.099" transform="matrix(0.9949 -0.1012 0.1012 0.9949 -25.7011 10.4414)" fill="#48CFAD" width="16.211" height="19"/>
+          </g>
+
+          <!-- House paths (dynamic) -->
+          <g id="houses-site1">
+            {% for house in site1_houses %}
+            <path class="house-path"
+                  d="{{ house.coordinates }}"
+                  fill="{% if house.status == 'available' %}#3D3DF9{% else %}#e9573f{% endif %}"
+                  data-id="{{ house.id }}"
+                  data-address="{{ house.house_number }}"
+                  data-status="{{ house.get_status_display }}"
+                  data-resident="{% if house.allocated_to %}{{ house.allocated_to.get_full_name|default:house.allocated_to.username }}{% endif %}">
+              <title>{{ house.house_number }} – {{ house.get_status_display }}</title>
+            </path>
+            {% endfor %}
+          </g>
+
+          <!-- Text labels -->
+          <g id="TEXT">
+            <text transform="matrix(0.9954 -0.0963 0.0963 0.9954 117.5249 400.999)" font-family="sans-serif" font-size="10.001">E L E M E N T A R Y  S C H O O L</text>
+            <text transform="matrix(0.9956 -0.0942 0.0942 0.9956 180.084 362.333)" font-family="sans-serif" font-size="5.0004">F  O  O  T  P  A  T  H     5</text>
+            <text transform="matrix(0.9944 -0.1059 0.1059 0.9944 146.6841 419.9785)" font-family="sans-serif" font-size="10">B  L  O  C  K     1 0</text>
+            <text transform="matrix(0.9952 -0.0976 0.0976 0.9952 151.686 429.0938)" font-family="sans-serif" font-size="7">Community Facilities</text>
+            <text transform="matrix(0.9939 -0.1099 0.1099 0.9939 130.7061 467.0957)" font-family="sans-serif" font-size="9.9992">W E T    M A R K E T</text>
+            <text transform="matrix(0.1161 0.9932 -0.9932 0.1161 232.9507 405.7236)" font-family="sans-serif" font-size="6.9994">M R F</text>
+            <text transform="matrix(0.0996 0.995 -0.995 0.0996 261.0884 437.5889)" font-family="sans-serif" font-size="7">PARKS &amp;</text>
+            <text transform="matrix(0.0996 0.995 -0.995 0.0996 251.6978 428.1172)" font-family="sans-serif" font-size="7">PLAYGROUNDS</text>
+            <text transform="matrix(0.9932 -0.1168 0.1168 0.9932 188.667 510.3311)" font-family="sans-serif" font-size="9.0008">R  O  A  D  L  O  T   9</text>
+            <text transform="matrix(0.9946 -0.1042 0.1042 0.9946 227.9248 273.563)" font-family="sans-serif" font-size="10.0008">R   O   A   D   L   O   T     1</text>
+            <text transform="matrix(0.114 0.9935 -0.9935 0.114 249.4912 282.6543)" font-family="sans-serif" font-size="10">B  L  O  C  K     9</text>
+            <text transform="matrix(0.1116 0.9938 -0.9938 0.1116 224.4912 291.3623)" font-family="sans-serif" font-size="5.0004">F  O  O  T  P  A  T  H    4</text>
+            <text transform="matrix(0.1106 0.9939 -0.9939 0.1106 195.4629 288.8174)" font-family="sans-serif" font-size="10.0006">B  L  O  C  K     8</text>
+            <text transform="matrix(0.102 0.9948 -0.9948 0.102 170.1792 295.5215)" font-family="sans-serif" font-size="5">F  O  O  T  H  P  A  T  H   3</text>
+            <text transform="matrix(0.0701 0.9975 -0.9975 0.0701 141.4941 294.5781)" font-family="sans-serif" font-size="9.9992">B  L  O  C  K    7</text>
+            <text transform="matrix(0.0903 0.9959 -0.9959 0.0903 113.7446 322.9209)" font-family="sans-serif" font-size="9">R   O   A   D   L   O   T      8</text>
+            <text transform="matrix(0.0915 0.9958 -0.9958 0.0915 92.5947 101.5415)" font-family="sans-serif" font-size="9">R   O   A   D   L   O   T       4</text>
+            <text transform="matrix(0.0771 0.997 -0.997 0.0771 125.5854 135.21)" font-family="sans-serif" font-size="10">B  L  O  C  K     4</text>
+            <text transform="matrix(0.1114 0.9938 -0.9938 0.1114 175.8901 108.1704)" font-family="sans-serif" font-size="10">B  L  O  C  K     5</text>
+            <text transform="matrix(0.0973 0.9953 -0.9953 0.0973 154.3623 140.0024)" font-family="sans-serif" font-size="5.0004">FOOTPATH 1</text>
+            <text transform="matrix(0.1211 0.9926 -0.9926 0.1211 207.9121 135.7642)" font-family="sans-serif" font-size="4.9996">FOOTPATH 2</text>
+            <text transform="matrix(0.1178 0.993 -0.993 0.1178 345.9893 304.9072)" font-family="sans-serif" font-size="4.9996">F  O  O  T  P  A  T  H     8</text>
+            <text transform="matrix(0.1038 0.9946 -0.9946 0.1038 400.957 294.3242)" font-family="sans-serif" font-size="5">F  O  O  T  P   A  T  H     9</text>
+            <text transform="matrix(0.1176 0.9931 -0.9931 0.1176 378.5957 110.1079)" font-family="sans-serif" font-size="5.0004">F O O T P A T H   7</text>
+            <text transform="matrix(0.9556 -0.2946 0.2946 0.9556 139.5596 95.1299)" font-family="sans-serif" font-size="9">R   O   A   D   L   O  T    5</text>
+            <text transform="matrix(0.1185 0.993 -0.993 0.1185 286.6289 319.6045)" font-family="sans-serif" font-size="10">R  O  A  D  L  O  T    3</text>
+            <text transform="matrix(0.999 -0.0449 0.0449 0.999 319.7207 46.3359)" font-family="sans-serif" font-size="9">R  O  A  D  L  O  T    6</text>
+            <text transform="matrix(0.117 0.9931 -0.9931 0.117 262.147 99.0571)" font-family="sans-serif" font-size="8.9994">R  O  A  D  L  O  T     2</text>
+            <text transform="matrix(0.5897 -0.8076 0.8076 0.5897 384.0566 453.0596)" font-family="sans-serif" font-size="9">R  O  A  D  L  O  T     10</text>
+            <text transform="matrix(0.9971 -0.0764 0.0764 0.9971 456.6748 187.7427)" font-family="sans-serif" font-size="5">F O O T P A T H  12</text>
+            <text transform="matrix(0.9977 -0.0677 0.0677 0.9977 447.6338 133.2485)" font-family="sans-serif" font-size="5">F O O T P A  T H  11</text>
+            <text transform="matrix(0.9974 -0.0724 0.0724 0.9974 444.0127 79.2808)" font-family="sans-serif" font-size="5">FOOTPATH 10</text>
+            <text transform="matrix(0.1101 0.9939 -0.9939 0.1101 324.7373 121.5586)" font-family="sans-serif" font-size="5">FOOTPATH 6</text>
+            <text transform="matrix(1 0 0 1 170.915 102.25)" font-family="sans-serif" font-size="5">PARKS &amp;</text>
+            <text transform="matrix(1 0 0 1 163.5151 108.25)" font-family="sans-serif" font-size="5">PLAYGROUNDS</text>
+            <text transform="matrix(0.9817 -0.1905 0.1905 0.9817 238.3667 25.2822)" font-family="sans-serif" font-size="10">B    L   O   C   K      3</text>
+            <text transform="matrix(1 0 0 1 439.7803 52)" font-family="sans-serif" font-size="7">BLOCK 18</text>
+            <text transform="matrix(1 0 0 1 447.415 58.75)" font-family="sans-serif" font-size="5">PARKS &amp;</text>
+            <text transform="matrix(1 0 0 1 440.0156 64.75)" font-family="sans-serif" font-size="5">PLAYGROUNDS</text>
+            <text transform="matrix(1 0 0 1 445.5781 105.5)" font-family="sans-serif" font-size="7">B L O C K   19</text>
+            <text transform="matrix(1 0 0 1 456.0703 159.5)" font-family="sans-serif" font-size="7">B L O C K  20</text>
+            <text transform="matrix(0.9976 -0.0696 0.0696 0.9976 464.0068 214.4941)" font-family="sans-serif" font-size="7">B L O C K  21</text>
+            <text transform="matrix(0.1197 0.9928 -0.9928 0.1197 430.3848 80.6426)" font-family="sans-serif" font-size="9">R  O  A  D  L  O  T    7</text>
+            <text transform="matrix(0.1234 0.9924 -0.9924 0.1234 402.708 92.7197)" font-family="sans-serif" font-size="10.0008">B  L  O  C  K    14</text>
+            <text transform="matrix(0.122 0.9925 -0.9925 0.122 347.6621 95.9727)" font-family="sans-serif" font-size="10">B  L  O  C  K    1 3</text>
+            <text transform="matrix(0.1309 0.9914 -0.9914 0.1309 293.5176 98.7852)" font-family="sans-serif" font-size="10">B  L  O  C  K     1 2</text>
+            <text transform="matrix(0.0945 0.9955 -0.9955 0.0945 232.0625 111.5029)" font-family="sans-serif" font-size="10">B  L  O  C  K     6</text>
+            <text transform="matrix(1 0 0 1 83.6724 258)" font-family="sans-serif" font-size="6">P O L I C E</text>
+            <text transform="matrix(1 0 0 1 80.5522 265.2002)" font-family="sans-serif" font-size="6">O U T P O S T</text>
+            <text transform="matrix(1 0 0 1 81.2314 304)" font-family="sans-serif" font-size="6">T R I C Y C L E</text>
+            <text transform="matrix(1 0 0 1 80.1113 311.2002)" font-family="sans-serif" font-size="6">T E R M I N A L</text>
+            <text transform="matrix(0.9944 -0.1055 0.1055 0.9944 463.4912 285.1484)" font-family="sans-serif" font-size="8">B L O C K  22</text>
+            <text transform="matrix(0.4355 -0.9002 0.9002 0.4355 421.835 351.8525)" font-family="sans-serif" font-size="6">P A R K S  &amp;</text>
+            <text transform="matrix(0.4355 -0.9002 0.9002 0.4355 423.3447 365.2695)" font-family="sans-serif" font-size="6">P L A Y G R O U N D S</text>
+            <text transform="matrix(0.1261 0.992 -0.992 0.1261 321.2266 359.6514)" font-family="sans-serif" font-size="10">B L O C K   15</text>
+            <text transform="matrix(0.1047 0.9945 -0.9945 0.1047 374.9873 321.8447)" font-family="sans-serif" font-size="10">B L O C K   16</text>
+            <text transform="matrix(0.0926 0.9957 -0.9957 0.0926 423.6396 262.6255)" font-family="sans-serif" font-size="10">B L O C K   17</text>
+            <text transform="matrix(0.5245 -0.8514 0.8514 0.5245 426.3213 455.2266)" font-family="sans-serif" font-size="10">B   L   O   C   K   1</text>
+            <text transform="matrix(0.9903 -0.1386 0.1386 0.9903 197.7798 545.0186)" font-family="sans-serif" font-size="9.9995">B   L   O   C   K    11</text>
+            <text transform="matrix(0.0881 0.9961 -0.9961 0.0881 83.6719 378.7236)" font-family="sans-serif" font-size="10">B   L   O   C   K    2</text>
+            <text transform="matrix(0.0881 0.9961 -0.9961 0.0881 63.0918 147.7568)" font-family="sans-serif" font-size="10">B   L   O   C   K    1</text>
+          </g>
+        </svg>
+
+        <!-- Zoom controls -->
+        <div class="zoom-toolbar" data-svg="svg-site1">
+          <button class="zoom-btn zoom-in"    title="Zoom in">+</button>
+          <button class="zoom-btn zoom-out"   title="Zoom out">−</button>
+          <button class="zoom-btn zoom-reset" title="Reset view" style="font-size:.75rem;">⊙</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== SITE 2 ===== -->
+    <div class="tab-pane fade" id="site2" role="tabpanel">
+      <div class="map-wrap" style="height:640px;">
+        <svg id="svg-site2" viewBox="0 0 545 565"
+             xmlns="http://www.w3.org/2000/svg">
+
+          <!-- Background -->
+          <g id="BASE">
+            <g>
+              <polygon fill="#C6DB9C" points="55,8 529,44 322,552 55,552"/>
+              <g>
+                <polyline fill="none" stroke="#707070" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" points="55,15.5 55,8 62.48,8.57"/>
+                <line fill="none" stroke="#707070" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="14.7553,7.8695" x1="70.33" y1="9.16" x2="517.6" y2="43.13"/>
+                <polyline fill="none" stroke="#707070" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" points="521.52,43.43 529,44 526.17,50.95"/>
+                <line fill="none" stroke="#707070" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="14.9038,7.9487" x1="523.17" y1="58.31" x2="326.33" y2="541.37"/>
+                <polyline fill="none" stroke="#707070" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" points="324.83,545.05 322,552 314.5,552"/>
+                <line fill="none" stroke="#707070" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="14.4828,7.7241" x1="306.78" y1="552" x2="66.36" y2="552"/>
+                <polyline fill="none" stroke="#707070" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" points="62.5,552 55,552 55,544.5"/>
+                <line fill="none" stroke="#707070" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="14.7765,7.8808" x1="55" y1="536.62" x2="55" y2="19.44"/>
+              </g>
+            </g>
+          </g>
+
+          <!-- Green block polygons -->
+          <g id="BLOCKS">
+            <polygon fill="#83C142" stroke="#8CC152" stroke-miterlimit="10" points="58.34,517 266.9,517 275,524.5 265.38,549 58.34,549"/>
+            <polygon fill="#83C142" stroke="#8CC152" stroke-miterlimit="10" points="58.34,427.33 58.34,494.67 266.66,494.67 274.75,490.33 297.67,430 292.279,424.67"/>
+            <polygon fill="#83C142" stroke="#8CC152" stroke-miterlimit="10" points="58.34,351.66 58.34,417.33 297.359,414.66 304.77,410.66 328.33,354 324.63,348.33"/>
+            <polygon fill="#83C142" stroke="#8CC152" stroke-miterlimit="10" points="58.34,272.66 58.34,340.66 329.39,338.33 336.45,334.33 361,275.66 355.62,270.33"/>
+            <polygon fill="#83C142" stroke="#8CC152" stroke-miterlimit="10" points="58.34,196.33 58.34,262.67 360.75,260 367.81,256.33 392,197.67 386.96,192"/>
+            <polygon fill="#83C142" stroke="#8CC152" stroke-miterlimit="10" points="61,120 61,186.67 392,183 400,178.33 423.33,122 416,114.67"/>
+            <polygon fill="#83C142" stroke="#8CC152" stroke-miterlimit="10" points="61,15.68 135.67,15.68 135.67,93.68 130.34,98.34 61,98.34"/>
+            <polygon fill="#83C142" stroke="#8CC152" stroke-miterlimit="10" points="148.34,17.01 148.34,93.01 154,98.34 221,98.34 227.34,92.68 227.34,26.34"/>
+            <polygon fill="#83C142" stroke="#8CC152" stroke-miterlimit="10" points="237.34,27.34 239,91.68 243.67,96.68 311.67,96.68 317.34,91.01 317.34,35.01"/>
+            <polygon fill="#83C142" stroke="#8CC152" stroke-miterlimit="10" points="328.67,36.68 328.67,90.34 334.67,95.01 443.34,90.34 454,84.01 469.34,46.68"/>
+            <polygon fill="#83C142" stroke="#8CC152" stroke-miterlimit="10" points="481.5,49 521,52 318,546 277,549"/>
+          </g>
+
+          <!-- House paths (dynamic) -->
+          <g id="houses-site2">
+            {% for house in site2_houses %}
+            <path class="house-path"
+                  d="{{ house.coordinates }}"
+                  fill="{% if house.status == 'available' %}#3D3DF9{% else %}#e9573f{% endif %}"
+                  data-id="{{ house.id }}"
+                  data-address="{{ house.house_number }}"
+                  data-status="{{ house.get_status_display }}"
+                  data-resident="{% if house.allocated_to %}{{ house.allocated_to.get_full_name|default:house.allocated_to.username }}{% endif %}">
+              <title>{{ house.house_number }} – {{ house.get_status_display }}</title>
+            </path>
+            {% endfor %}
+          </g>
+
+          <!-- Text labels -->
+          <g id="text">
+            <text transform="matrix(1 0 0 1 120 511)" font-family="sans-serif" font-size="12">R   O   A   D    L   O   T     1</text>
+            <text transform="matrix(1 0 0 1 136 423)" font-family="sans-serif" font-size="7">F   O   O   T       P   A   T  H</text>
+            <text transform="matrix(1 0 0 1 136 347.3291)" font-family="sans-serif" font-size="7">F   O   O   T       P   A   T  H</text>
+            <text transform="matrix(1 0 0 1 134.5 270)" font-family="sans-serif" font-size="7">F   O   O   T       P   A   T  H</text>
+            <text transform="matrix(1 0 0 1 133.5 192.5)" font-family="sans-serif" font-size="6">F  O  O  T     P  A  T H</text>
+            <text transform="matrix(1 0 0 1 213 112)" font-family="sans-serif" font-size="12">R  O  A  D    L  O  T    2</text>
+            <text transform="matrix(-0.0283 0.9996 -0.9996 -0.0283 140.3115 38.3042)" font-family="sans-serif" font-size="6">F  O  O  T     P  A  T  H</text>
+            <text transform="matrix(0.0283 0.9996 -0.9996 0.0283 230.4585 36.7754)" font-family="sans-serif" font-size="6">F  O  O  T     P  A  T  H</text>
+            <text transform="matrix(0.0062 1 -1 0.0062 320.9863 43.856)" font-family="sans-serif" font-size="6">F  O  O  T     P  A  T  H</text>
+            <text transform="matrix(0.3841 -0.9233 0.9233 0.3841 397.7363 354.835)" font-family="sans-serif" font-size="12">R   O   A   D    L   O   T     3</text>
+            <text transform="matrix(0.8272 0.562 -0.562 0.8272 365.2461 50.4121)" font-family="sans-serif" font-size="12">B L O C K   1 0</text>
+            <text transform="matrix(0 1 -1 0 274.457 39.167)" font-family="sans-serif" font-size="12">B L O C K   9</text>
+            <text transform="matrix(0 1 -1 0 184.125 39.167)" font-family="sans-serif" font-size="12">B L O C K   8</text>
+            <text transform="matrix(0 1 -1 0 93.5 31.5)" font-family="sans-serif" font-size="12">B L O C K   7</text>
+            <text transform="matrix(1.5285 -0.0135 0.0088 1 162.8403 155.8442)" font-family="sans-serif" font-size="10">B     L     O     C     K         6</text>
+            <text transform="matrix(1.5277 -0.0134 0.0088 1 156.3682 231.5537)" font-family="sans-serif" font-size="10">B     L     O     C     K         5</text>
+            <text transform="matrix(1.6541 -0.0146 0.0088 1 140.8169 310.0703)" font-family="sans-serif" font-size="10">B     L     O     C     K         4</text>
+            <text transform="matrix(1 -0.0088 0.0088 1 139.8325 386.335)" font-family="sans-serif" font-size="10">B     L     O     C     K         3</text>
+            <text transform="matrix(1 -0.0088 0.0088 1 140.312 463.623)" font-family="sans-serif" font-size="10">B     L     O     C     K         2</text>
+            <text transform="matrix(1 -0.0088 0.0088 1 121.4995 551.623)" font-family="sans-serif" font-size="10">B     L     O     C     K         1</text>
+            <text transform="matrix(0.3851 -0.9229 0.9229 0.3851 397.7363 354.835)" font-family="sans-serif" font-size="16">B   L   O   C   K      1 1</text>
+          </g>
+        </svg>
+
+        <!-- Zoom controls -->
+        <div class="zoom-toolbar" data-svg="svg-site2">
+          <button class="zoom-btn zoom-in"    title="Zoom in">+</button>
+          <button class="zoom-btn zoom-out"   title="Zoom out">−</button>
+          <button class="zoom-btn zoom-reset" title="Reset view" style="font-size:.75rem;">⊙</button>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- end tab-content -->
+</div>
+
+<!-- ===== House Detail Modal ===== -->
+<div class="modal fade" id="houseModal" tabindex="-1" aria-labelledby="houseModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="houseModalLabel">House Details</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body" id="houseModalBody"></div>
+      <div class="modal-footer" id="houseModalFooter" style="display:none;">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        <button type="button" class="btn btn-primary" id="confirmAllocateBtn">Confirm Allocation</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const canAllocate = {{ can_allocate|yesno:"true,false" }};
+
+function getCsrf() {
+  var m = document.cookie.match(/csrftoken=([^;]+)/);
+  return m ? m[1] : '';
+}
+
+// ── SvgPanZoom ────────────────────────────────────────────────────────────────
+class SvgPanZoom {
+  constructor(svgEl, opts) {
+    opts = opts || {};
+    this.svg        = svgEl;
+    this.minScale   = opts.minScale   || 0.5;
+    this.maxScale   = opts.maxScale   || 12;
+    this.zoomStep   = opts.zoomStep   || 0.15;
+
+    var vb      = svgEl.viewBox.baseVal;
+    this.origX  = vb.x;
+    this.origY  = vb.y;
+    this.origW  = vb.width;
+    this.origH  = vb.height;
+    this.vx     = vb.x;
+    this.vy     = vb.y;
+    this.vw     = vb.width;
+    this.vh     = vb.height;
+    this.ratio  = vb.height / vb.width;
+
+    this.panning   = false;
+    this.wasDragged = false;
+    this._lx = 0; this._ly = 0;
+    this._dragDist = 0;
+
+    // touch pinch state
+    this._t0 = null; this._t1 = null;
+    this._pinchDist = 0;
+    this._pinchVx = 0; this._pinchVy = 0;
+    this._pinchVw = 0; this._pinchVh = 0;
+    this._pinchMidSvg = null;
+
+    this._bind();
+  }
+
+  _bind() {
+    var s = this.svg;
+    s.style.cursor = 'grab';
+    s.addEventListener('wheel',      this._wheel.bind(this),      { passive: false });
+    s.addEventListener('mousedown',  this._mdown.bind(this));
+    s.addEventListener('mousemove',  this._mmove.bind(this));
+    s.addEventListener('mouseup',    this._mup.bind(this));
+    s.addEventListener('mouseleave', this._mup.bind(this));
+    s.addEventListener('touchstart', this._tstart.bind(this),     { passive: false });
+    s.addEventListener('touchmove',  this._tmove.bind(this),      { passive: false });
+    s.addEventListener('touchend',   this._tend.bind(this));
+  }
+
+  _apply(x, y, w, h) {
+    var minW = this.origW / this.maxScale;
+    var maxW = this.origW / this.minScale;
+    if (w < minW) w = minW;
+    if (w > maxW) w = maxW;
+    h = w * this.ratio;
+    this.vx = x; this.vy = y; this.vw = w; this.vh = h;
+    this.svg.setAttribute('viewBox', x + ' ' + y + ' ' + w + ' ' + h);
+  }
+
+  _svgPt(cx, cy) {
+    var r = this.svg.getBoundingClientRect();
+    return {
+      x: this.vx + (cx - r.left) / r.width  * this.vw,
+      y: this.vy + (cy - r.top)  / r.height * this.vh,
+    };
+  }
+
+  _wheel(e) {
+    e.preventDefault();
+    var f  = e.deltaY > 0 ? (1 + this.zoomStep) : (1 - this.zoomStep);
+    var pt = this._svgPt(e.clientX, e.clientY);
+    var nw = this.vw * f, nh = this.vh * f;
+    this._apply(
+      pt.x - (pt.x - this.vx) * (nw / this.vw),
+      pt.y - (pt.y - this.vy) * (nh / this.vh),
+      nw, nh
+    );
+  }
+
+  _mdown(e) {
+    if (e.button !== 0) return;
+    this.panning    = true;
+    this.wasDragged = false;
+    this._dragDist  = 0;
+    this._lx = e.clientX; this._ly = e.clientY;
+    this.svg.classList.add('panning');
+  }
+
+  _mmove(e) {
+    if (!this.panning) return;
+    var r  = this.svg.getBoundingClientRect();
+    var dx = (e.clientX - this._lx) / r.width  * this.vw;
+    var dy = (e.clientY - this._ly) / r.height * this.vh;
+    this._dragDist += Math.abs(e.clientX - this._lx) + Math.abs(e.clientY - this._ly);
+    if (this._dragDist > 4) this.wasDragged = true;
+    this._lx = e.clientX; this._ly = e.clientY;
+    this._apply(this.vx - dx, this.vy - dy, this.vw, this.vh);
+  }
+
+  _mup() {
+    this.panning = false;
+    this.svg.classList.remove('panning');
+  }
+
+  _dist(a, b) { return Math.hypot(b.clientX - a.clientX, b.clientY - a.clientY); }
+
+  _tstart(e) {
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      var r = this.svg.getBoundingClientRect();
+      this._t0 = e.touches[0]; this._t1 = e.touches[1];
+      this._pinchDist = this._dist(this._t0, this._t1);
+      this._pinchVx = this.vx; this._pinchVy = this.vy;
+      this._pinchVw = this.vw; this._pinchVh = this.vh;
+      var mx = (this._t0.clientX + this._t1.clientX) / 2;
+      var my = (this._t0.clientY + this._t1.clientY) / 2;
+      this._pinchMidSvg = {
+        x: this.vx + (mx - r.left) / r.width  * this.vw,
+        y: this.vy + (my - r.top)  / r.height * this.vh,
+      };
+      this.panning = false;
+    } else if (e.touches.length === 1) {
+      this.panning    = true;
+      this.wasDragged = false;
+      this._dragDist  = 0;
+      this._lx = e.touches[0].clientX;
+      this._ly = e.touches[0].clientY;
+    }
+  }
+
+  _tmove(e) {
+    if (e.touches.length === 2 && this._pinchMidSvg) {
+      e.preventDefault();
+      var r     = this.svg.getBoundingClientRect();
+      var dist  = this._dist(e.touches[0], e.touches[1]);
+      var scale = this._pinchDist / dist;
+      var mx    = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+      var my    = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+      var fx    = (mx - r.left) / r.width;
+      var fy    = (my - r.top)  / r.height;
+      var nw    = this._pinchVw * scale;
+      var nh    = this._pinchVh * scale;
+      this._apply(
+        this._pinchMidSvg.x - fx * nw,
+        this._pinchMidSvg.y - fy * nh,
+        nw, nh
+      );
+    } else if (e.touches.length === 1 && this.panning) {
+      e.preventDefault();
+      var r  = this.svg.getBoundingClientRect();
+      var dx = (e.touches[0].clientX - this._lx) / r.width  * this.vw;
+      var dy = (e.touches[0].clientY - this._ly) / r.height * this.vh;
+      this._dragDist += Math.abs(e.touches[0].clientX - this._lx) + Math.abs(e.touches[0].clientY - this._ly);
+      if (this._dragDist > 6) this.wasDragged = true;
+      this._lx = e.touches[0].clientX;
+      this._ly = e.touches[0].clientY;
+      this._apply(this.vx - dx, this.vy - dy, this.vw, this.vh);
+    }
+  }
+
+  _tend(e) {
+    if (e.touches.length < 2) this._pinchMidSvg = null;
+    if (e.touches.length === 0) this.panning = false;
+  }
+
+  zoom(factor) {
+    var cx = this.vx + this.vw / 2, cy = this.vy + this.vh / 2;
+    var nw = this.vw * factor;
+    this._apply(cx - nw / 2, cy - nw * this.ratio / 2, nw, nw * this.ratio);
+  }
+
+  reset() { this._apply(this.origX, this.origY, this.origW, this.origH); }
+}
+
+// Init both maps
+var pz = {
+  'svg-site1': new SvgPanZoom(document.getElementById('svg-site1')),
+  'svg-site2': new SvgPanZoom(document.getElementById('svg-site2')),
+};
+
+// Wire toolbar buttons
+document.querySelectorAll('.zoom-toolbar').forEach(function(tb) {
+  var id = tb.dataset.svg;
+  tb.querySelector('.zoom-in').addEventListener('click',    function() { pz[id].zoom(0.75); });
+  tb.querySelector('.zoom-out').addEventListener('click',   function() { pz[id].zoom(1.35); });
+  tb.querySelector('.zoom-reset').addEventListener('click', function() { pz[id].reset(); });
+});
+
+// ── House click → modal ───────────────────────────────────────────────────────
+document.querySelectorAll('.house-path').forEach(function(path) {
+  path.addEventListener('click', function() {
+    // Don't fire modal if user was panning
+    var svgEl = path.closest('svg');
+    var pzInst = svgEl ? pz[svgEl.id] : null;
+    if (pzInst && pzInst.wasDragged) { pzInst.wasDragged = false; return; }
+
+    var id       = this.dataset.id;
+    var address  = this.dataset.address;
+    var status   = this.dataset.status;
+    var resident = this.dataset.resident;
+
+    var modal  = new bootstrap.Modal(document.getElementById('houseModal'));
+    var body   = document.getElementById('houseModalBody');
+    var footer = document.getElementById('houseModalFooter');
+
+    document.getElementById('houseModalLabel').textContent = address;
+    footer.style.display = 'none';
+
+    var statusColor = status === 'Available' ? '#3D3DF9' : '#e9573f';
+    var html = '<table class="table table-sm mb-0">' +
+      '<tr><th style="width:110px">Address</th><td>' + address + '</td></tr>' +
+      '<tr><th>Status</th><td><span class="badge" style="background:' + statusColor + '">' + status + '</span></td></tr>' +
+      '<tr><th>Resident</th><td>' + (resident || '—') + '</td></tr>' +
+      '</table>';
+
+    if (canAllocate && status === 'Available') {
+      html += '<hr class="my-2"><h6 class="mb-2">Allocate this house</h6>' +
+        '<select id="applicantSelect" class="form-select form-select-sm" data-house-id="' + id + '">' +
+          '<option value="">Loading approved applicants…</option>' +
+        '</select>';
+      footer.style.display = '';
+    }
+
+    body.innerHTML = html;
+    modal.show();
+
+    if (canAllocate && status === 'Available') {
+      fetch('/api/approved-applicants/', { credentials: 'same-origin' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          var sel = document.getElementById('applicantSelect');
+          if (!sel) return;
+          if (!Array.isArray(data) || data.length === 0) {
+            sel.innerHTML = '<option value="">No approved applicants without a house</option>';
+          } else {
+            sel.innerHTML = '<option value="">Select an applicant…</option>' +
+              data.map(function(a) {
+                return '<option value="' + a.id + '">' + a.full_name + '</option>';
+              }).join('');
+          }
+        })
+        .catch(function() {
+          var sel = document.getElementById('applicantSelect');
+          if (sel) sel.innerHTML = '<option value="">Error loading applicants</option>';
+        });
+    }
+  });
+});
+
+document.getElementById('confirmAllocateBtn').addEventListener('click', function() {
+  var sel = document.getElementById('applicantSelect');
+  if (!sel) return;
+  var houseId     = parseInt(sel.dataset.houseId);
+  var applicantId = parseInt(sel.value);
+
+  if (!applicantId) { alert('Please select an applicant first.'); return; }
+
+  var btn = this;
+  btn.disabled = true;
+  btn.textContent = 'Allocating…';
+
+  fetch('/api/allocate/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
+    credentials: 'same-origin',
+    body: JSON.stringify({ house_id: houseId, applicant_id: applicantId }),
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.detail) {
+      alert(data.detail);
+      location.reload();
+    } else {
+      alert('Allocation failed: ' + JSON.stringify(data));
+      btn.disabled = false;
+      btn.textContent = 'Confirm Allocation';
+    }
+  })
+  .catch(function() {
+    alert('Network error. Please try again.');
+    btn.disabled = false;
+    btn.textContent = 'Confirm Allocation';
+  });
+});
+</script>
+{% endblock %}

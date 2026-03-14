@@ -1,0 +1,1106 @@
+{% extends 'housing/base.html' %}
+{% block title %}My Application – Barangay Housing Village{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h2><i class="bi bi-file-earmark-person me-2"></i>My Housing Application</h2>
+  <p>Typhoon Haiyan (Yolanda) Relief Housing Program</p>
+</div>
+
+{% if application %}
+<div class="alert alert-{% if application.status == 'approved' %}success{% elif application.status == 'rejected' %}secondary{% else %}warning{% endif %} mb-4 d-flex align-items-center gap-2">
+  <i class="bi bi-{% if application.status == 'approved' %}check-circle-fill{% elif application.status == 'rejected' %}x-circle-fill{% else %}hourglass-split{% endif %} fs-5"></i>
+  <div>
+    <strong>Status: {{ application.get_status_display }}</strong>
+    {% if application.status == 'approved' %}
+    — Your application has been approved. Awaiting house allocation.
+    {% elif application.status == 'rejected' %}
+    — Your application was not approved at this time.
+    {% if application.notes %}<br><em>{{ application.notes }}</em>{% endif %}
+    {% else %}
+    — Your application is under review.
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+<div class="row justify-content-center">
+  <div class="col-lg-9">
+
+    {% if can_edit %}
+    <form method="post" enctype="multipart/form-data" novalidate>
+      {% csrf_token %}
+
+      <!-- ── Section 1: Applicant Info ── -->
+      <div class="app-section">
+        <div class="app-section__header">
+          <span class="app-section__num">1</span>
+          <div>
+            <h6 class="app-section__title">Applicant Information</h6>
+            <p class="app-section__sub">Person submitting this application</p>
+          </div>
+        </div>
+        <div class="app-section__body">
+          <div class="row g-3">
+            <div class="col-sm-6">
+              {% with f=form.applicant_fname %}
+              <label class="form-label fw-medium small">{{ f.label }} <span class="text-danger">*</span></label>
+              <input type="text" name="{{ f.html_name }}" id="{{ f.id_for_label }}"
+                     class="form-control{% if f.errors %} is-invalid{% endif %}"
+                     value="{{ f.value|default:'' }}" placeholder="First name">
+              {% for e in f.errors %}<div class="invalid-feedback">{{ e }}</div>{% endfor %}
+              {% endwith %}
+            </div>
+            <div class="col-sm-6">
+              {% with f=form.applicant_lname %}
+              <label class="form-label fw-medium small">{{ f.label }} <span class="text-danger">*</span></label>
+              <input type="text" name="{{ f.html_name }}" id="{{ f.id_for_label }}"
+                     class="form-control{% if f.errors %} is-invalid{% endif %}"
+                     value="{{ f.value|default:'' }}" placeholder="Last name">
+              {% for e in f.errors %}<div class="invalid-feedback">{{ e }}</div>{% endfor %}
+              {% endwith %}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Section 2: Household Head ── -->
+      <div class="app-section">
+        <div class="app-section__header">
+          <span class="app-section__num">2</span>
+          <div>
+            <h6 class="app-section__title">Household Head Information</h6>
+            <p class="app-section__sub">Details of the head of the household</p>
+          </div>
+        </div>
+        <div class="app-section__body" id="hhSection">
+          <div class="row g-3">
+            <div class="col-sm-4">
+              {% with f=form.hh_fname %}
+              <label class="form-label fw-medium small">{{ f.label }} <span class="text-danger">*</span></label>
+              <input type="text" name="{{ f.html_name }}" id="{{ f.id_for_label }}"
+                     class="form-control{% if f.errors %} is-invalid{% endif %}"
+                     value="{{ f.value|default:'' }}">
+              {% for e in f.errors %}<div class="invalid-feedback">{{ e }}</div>{% endfor %}
+              {% endwith %}
+            </div>
+            <div class="col-sm-4">
+              {% with f=form.hh_mname %}
+              <label class="form-label fw-medium small">{{ f.label }}</label>
+              <input type="text" name="{{ f.html_name }}" id="{{ f.id_for_label }}"
+                     class="form-control{% if f.errors %} is-invalid{% endif %}"
+                     value="{{ f.value|default:'' }}">
+              {% for e in f.errors %}<div class="invalid-feedback">{{ e }}</div>{% endfor %}
+              {% endwith %}
+            </div>
+            <div class="col-sm-4">
+              {% with f=form.hh_lname %}
+              <label class="form-label fw-medium small">{{ f.label }} <span class="text-danger">*</span></label>
+              <input type="text" name="{{ f.html_name }}" id="{{ f.id_for_label }}"
+                     class="form-control{% if f.errors %} is-invalid{% endif %}"
+                     value="{{ f.value|default:'' }}">
+              {% for e in f.errors %}<div class="invalid-feedback">{{ e }}</div>{% endfor %}
+              {% endwith %}
+            </div>
+            <div class="col-sm-6">
+              {% with f=form.hh_bdate %}
+              <label class="form-label fw-medium small">{{ f.label }}</label>
+              <input type="date" name="{{ f.html_name }}" id="{{ f.id_for_label }}"
+                     class="form-control{% if f.errors %} is-invalid{% endif %}"
+                     value="{{ f.value|default:'' }}">
+              {% for e in f.errors %}<div class="invalid-feedback">{{ e }}</div>{% endfor %}
+              {% endwith %}
+            </div>
+            <div class="col-12">
+              <label class="form-label fw-medium small">Photo with National ID <span class="text-danger">*</span></label>
+              <p class="text-muted small mb-2">Take a photo of yourself holding your National ID clearly visible.</p>
+
+              <!-- Hidden input carries base64 captured image to the server -->
+              <input type="hidden" name="hh_image_data" id="hhImageData">
+
+              <!-- Existing photo (before any new capture) -->
+              {% if application.hh_image %}
+              <div id="hhExistingPhoto" class="mb-2">
+                <img src="{{ application.hh_image.url }}"
+                     style="max-width:220px;border-radius:10px;border:2px solid #6c757d;">
+                <div class="mt-1 small text-muted">Current photo — take a new one to replace it.</div>
+              </div>
+              {% endif %}
+
+              <!-- Preview of newly captured photo -->
+              <div id="hhPhotoPreview" class="mb-2" style="display:none;">
+                <img id="hhPreviewImg" src=""
+                     style="max-width:220px;border-radius:10px;border:2px solid #0038A8;">
+                <div class="mt-1">
+                  <button type="button" class="btn btn-sm btn-outline-secondary" id="hhRetakeBtn">
+                    <i class="bi bi-arrow-repeat me-1"></i>Retake
+                  </button>
+                </div>
+              </div>
+
+              <!-- Camera live view -->
+              <div id="hhCameraWrap" style="display:none;">
+                <video id="hhVideo" autoplay playsinline muted
+                       style="width:100%;max-width:400px;border-radius:10px;background:#000;"></video>
+                <canvas id="hhCanvas" style="display:none;"></canvas>
+                <div class="mt-2 d-flex gap-2">
+                  <button type="button" class="btn btn-primary btn-sm" id="hhCaptureBtn">
+                    <i class="bi bi-camera-fill me-1"></i>Capture Photo
+                  </button>
+                  <button type="button" class="btn btn-outline-secondary btn-sm" id="hhCancelCamBtn">
+                    <i class="bi bi-x-lg me-1"></i>Cancel
+                  </button>
+                </div>
+              </div>
+
+              <button type="button" class="btn btn-outline-primary btn-sm" id="hhOpenCamBtn">
+                <i class="bi bi-camera me-1"></i>Open Camera
+              </button>
+            </div>
+          </div>
+          <!-- Household head duplicate status -->
+          <div id="hhStatus" class="hh-status mt-2"></div>
+        </div>
+      </div>
+
+      <!-- ── Section 3: National ID ── -->
+      <div class="app-section">
+        <div class="app-section__header">
+          <span class="app-section__num">3</span>
+          <div>
+            <h6 class="app-section__title">National ID</h6>
+            <p class="app-section__sub">Upload or take a photo of the front and back of your National ID</p>
+          </div>
+        </div>
+        <div class="app-section__body">
+          <div class="row g-4">
+
+            <!-- Front -->
+            <div class="col-md-6">
+              <p class="fw-medium small mb-1">Front of ID <span class="text-danger">*</span></p>
+              <input type="hidden" name="nid_front_data" id="nidFrontData">
+              {% if application.national_id_front %}
+              <div id="nidFrontExisting" class="mb-2">
+                <img src="{{ application.national_id_front.url }}"
+                     style="max-width:100%;border-radius:8px;border:2px solid #6c757d;">
+                <div class="mt-1 small text-muted">Current — replace by uploading/capturing a new one.</div>
+              </div>
+              {% endif %}
+              <div id="nidFrontPreview" style="display:none;" class="mb-2">
+                <img id="nidFrontPreviewImg" src=""
+                     style="max-width:100%;border-radius:8px;border:2px solid #0038A8;">
+              </div>
+              <div class="d-flex gap-2 flex-wrap" id="nidFrontActions">
+                <label class="btn btn-outline-secondary btn-sm mb-0">
+                  <i class="bi bi-upload me-1"></i>Upload
+                  <input type="file" accept="image/*" id="nidFrontFile" style="display:none;">
+                </label>
+                <button type="button" class="btn btn-outline-primary btn-sm" id="nidFrontCamBtn">
+                  <i class="bi bi-camera me-1"></i>Take Photo
+                </button>
+                <button type="button" class="btn btn-outline-danger btn-sm" id="nidFrontClearBtn" style="display:none;">
+                  <i class="bi bi-x-lg me-1"></i>Clear
+                </button>
+              </div>
+              <div id="nidFrontCamWrap" style="display:none;" class="mt-2">
+                <video id="nidFrontVideo" autoplay playsinline muted
+                       style="width:100%;border-radius:8px;background:#000;"></video>
+                <canvas id="nidFrontCanvas" style="display:none;"></canvas>
+                <div class="mt-2 d-flex gap-2">
+                  <button type="button" class="btn btn-primary btn-sm" id="nidFrontCapture">
+                    <i class="bi bi-camera-fill me-1"></i>Capture
+                  </button>
+                  <button type="button" class="btn btn-outline-secondary btn-sm" id="nidFrontCancelCam">
+                    <i class="bi bi-x-lg me-1"></i>Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Back -->
+            <div class="col-md-6">
+              <p class="fw-medium small mb-1">Back of ID <span class="text-danger">*</span></p>
+              <input type="hidden" name="nid_back_data" id="nidBackData">
+              {% if application.national_id_back %}
+              <div id="nidBackExisting" class="mb-2">
+                <img src="{{ application.national_id_back.url }}"
+                     style="max-width:100%;border-radius:8px;border:2px solid #6c757d;">
+                <div class="mt-1 small text-muted">Current — replace by uploading/capturing a new one.</div>
+              </div>
+              {% endif %}
+              <div id="nidBackPreview" style="display:none;" class="mb-2">
+                <img id="nidBackPreviewImg" src=""
+                     style="max-width:100%;border-radius:8px;border:2px solid #0038A8;">
+              </div>
+              <div class="d-flex gap-2 flex-wrap" id="nidBackActions">
+                <label class="btn btn-outline-secondary btn-sm mb-0">
+                  <i class="bi bi-upload me-1"></i>Upload
+                  <input type="file" accept="image/*" id="nidBackFile" style="display:none;">
+                </label>
+                <button type="button" class="btn btn-outline-primary btn-sm" id="nidBackCamBtn">
+                  <i class="bi bi-camera me-1"></i>Take Photo
+                </button>
+                <button type="button" class="btn btn-outline-danger btn-sm" id="nidBackClearBtn" style="display:none;">
+                  <i class="bi bi-x-lg me-1"></i>Clear
+                </button>
+              </div>
+              <div id="nidBackCamWrap" style="display:none;" class="mt-2">
+                <video id="nidBackVideo" autoplay playsinline muted
+                       style="width:100%;border-radius:8px;background:#000;"></video>
+                <canvas id="nidBackCanvas" style="display:none;"></canvas>
+                <div class="mt-2 d-flex gap-2">
+                  <button type="button" class="btn btn-primary btn-sm" id="nidBackCapture">
+                    <i class="bi bi-camera-fill me-1"></i>Capture
+                  </button>
+                  <button type="button" class="btn btn-outline-secondary btn-sm" id="nidBackCancelCam">
+                    <i class="bi bi-x-lg me-1"></i>Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Section 4: Civil Status ── -->
+      <div class="app-section">
+        <div class="app-section__header">
+          <span class="app-section__num">4</span>
+          <div>
+            <h6 class="app-section__title">Civil Status</h6>
+            <p class="app-section__sub">Marital status and spouse information</p>
+          </div>
+        </div>
+        <div class="app-section__body">
+          <div class="row g-3">
+            <div class="col-sm-4">
+              {% with f=form.civil_status %}
+              <label class="form-label fw-medium small">{{ f.label }} <span class="text-danger">*</span></label>
+              <select name="{{ f.html_name }}" id="{{ f.id_for_label }}"
+                      class="form-select{% if f.errors %} is-invalid{% endif %}" id="civilStatusSelect">
+                <option value="">— Select —</option>
+                {% for val, lbl in f.field.choices %}{% if val %}<option value="{{ val }}" {% if f.value == val %}selected{% endif %}>{{ lbl }}</option>{% endif %}{% endfor %}
+              </select>
+              {% for e in f.errors %}<div class="invalid-feedback">{{ e }}</div>{% endfor %}
+              {% endwith %}
+            </div>
+            <div class="col-sm-8" id="spouseFields" style="{% if form.civil_status.value != 'married' and form.civil_status.value != 'live_in' %}display:none{% endif %}">
+              <div class="row g-3">
+                <div class="col-sm-6">
+                  {% with f=form.spouse_name %}
+                  <label class="form-label fw-medium small">{{ f.label }}</label>
+                  <input type="text" name="{{ f.html_name }}" id="{{ f.id_for_label }}"
+                         class="form-control{% if f.errors %} is-invalid{% endif %}"
+                         value="{{ f.value|default:'' }}">
+                  {% for e in f.errors %}<div class="invalid-feedback">{{ e }}</div>{% endfor %}
+                  {% endwith %}
+                </div>
+                <div class="col-sm-6">
+                  {% with f=form.spouse_bdate %}
+                  <label class="form-label fw-medium small">{{ f.label }}</label>
+                  <input type="date" name="{{ f.html_name }}" id="{{ f.id_for_label }}"
+                         class="form-control{% if f.errors %} is-invalid{% endif %}"
+                         value="{{ f.value|default:'' }}">
+                  {% for e in f.errors %}<div class="invalid-feedback">{{ e }}</div>{% endfor %}
+                  {% endwith %}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Section 5: Household Details ── -->
+      <div class="app-section">
+        <div class="app-section__header">
+          <span class="app-section__num">5</span>
+          <div>
+            <h6 class="app-section__title">Household Details</h6>
+            <p class="app-section__sub">Information about your household and situation</p>
+          </div>
+        </div>
+        <div class="app-section__body">
+          <div class="row g-3">
+            <div class="col-sm-4">
+              {% with f=form.household_type %}
+              <label class="form-label fw-medium small">{{ f.label }} <span class="text-danger">*</span></label>
+              <select name="{{ f.html_name }}" id="{{ f.id_for_label }}"
+                      class="form-select{% if f.errors %} is-invalid{% endif %}">
+                <option value="">— Select —</option>
+                {% for val, lbl in f.field.choices %}{% if val %}<option value="{{ val }}" {% if f.value == val %}selected{% endif %}>{{ lbl }}</option>{% endif %}{% endfor %}
+              </select>
+              {% for e in f.errors %}<div class="invalid-feedback">{{ e }}</div>{% endfor %}
+              {% endwith %}
+            </div>
+            <div class="col-sm-4">
+              {% with f=form.tenurial_status %}
+              <label class="form-label fw-medium small">{{ f.label }} <span class="text-danger">*</span></label>
+              <select name="{{ f.html_name }}" id="{{ f.id_for_label }}"
+                      class="form-select{% if f.errors %} is-invalid{% endif %}">
+                <option value="">— Select —</option>
+                {% for val, lbl in f.field.choices %}{% if val %}<option value="{{ val }}" {% if f.value == val %}selected{% endif %}>{{ lbl }}</option>{% endif %}{% endfor %}
+              </select>
+              {% for e in f.errors %}<div class="invalid-feedback">{{ e }}</div>{% endfor %}
+              {% endwith %}
+            </div>
+            <div class="col-sm-4">
+              <label class="form-label fw-medium small">Household Size</label>
+              <div class="form-control bg-light text-muted" id="familySizeDisplay">
+                1 person(s)
+              </div>
+              <div class="form-text">Auto-calculated from household head + members added below.</div>
+            </div>
+            <div class="col-sm-4">
+              {% with f=form.extent_damage %}
+              <label class="form-label fw-medium small">{{ f.label }} <span class="text-danger">*</span></label>
+              <select name="{{ f.html_name }}" id="{{ f.id_for_label }}"
+                      class="form-select{% if f.errors %} is-invalid{% endif %}">
+                <option value="">— Select —</option>
+                {% for val, lbl in f.field.choices %}{% if val %}<option value="{{ val }}" {% if f.value == val %}selected{% endif %}>{{ lbl }}</option>{% endif %}{% endfor %}
+              </select>
+              {% for e in f.errors %}<div class="invalid-feedback">{{ e }}</div>{% endfor %}
+              {% endwith %}
+            </div>
+            <div class="col-sm-4">
+              {% with f=form.housing_option %}
+              <label class="form-label fw-medium small">{{ f.label }} <span class="text-danger">*</span></label>
+              <select name="{{ f.html_name }}" id="{{ f.id_for_label }}"
+                      class="form-select{% if f.errors %} is-invalid{% endif %}">
+                <option value="">— Select —</option>
+                {% for val, lbl in f.field.choices %}{% if val %}<option value="{{ val }}" {% if f.value == val %}selected{% endif %}>{{ lbl }}</option>{% endif %}{% endfor %}
+              </select>
+              {% for e in f.errors %}<div class="invalid-feedback">{{ e }}</div>{% endfor %}
+              {% endwith %}
+            </div>
+            <div class="col-sm-4">
+              {% with f=form.monthly_income %}
+              <label class="form-label fw-medium small">{{ f.label }}</label>
+              <div class="input-group">
+                <span class="input-group-text">₱</span>
+                <input type="number" name="{{ f.html_name }}" id="{{ f.id_for_label }}"
+                       class="form-control{% if f.errors %} is-invalid{% endif %}"
+                       value="{{ f.value|default:'0' }}" min="0">
+              </div>
+              {% for e in f.errors %}<div class="invalid-feedback">{{ e }}</div>{% endfor %}
+              {% endwith %}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Section 6: Address & Contact ── -->
+      <div class="app-section">
+        <div class="app-section__header">
+          <span class="app-section__num">6</span>
+          <div>
+            <h6 class="app-section__title">Address & Contact</h6>
+            <p class="app-section__sub">Where you currently live and how to reach you</p>
+          </div>
+        </div>
+        <div class="app-section__body">
+          <div class="row g-3">
+
+            <!-- Street / House No. -->
+            <div class="col-12">
+              <label class="form-label fw-medium small">House No. / Street / Purok</label>
+              <input type="text" id="addr_street" class="form-control"
+                     placeholder="e.g. 123 Rizal St., Purok 4"
+                     value="{{ form.current_address.value|default:''|slice:':80' }}">
+            </div>
+
+            <!-- Region -->
+            <div class="col-sm-6">
+              <label class="form-label fw-medium small">Region <span class="text-danger">*</span></label>
+              <select id="addr_region" class="form-select">
+                <option value="">— Loading regions… —</option>
+              </select>
+            </div>
+
+            <!-- Province -->
+            <div class="col-sm-6">
+              <label class="form-label fw-medium small">Province <span class="text-danger">*</span></label>
+              <select id="addr_province" class="form-select" disabled>
+                <option value="">— Select region first —</option>
+              </select>
+            </div>
+
+            <!-- City / Municipality -->
+            <div class="col-sm-6">
+              <label class="form-label fw-medium small">City / Municipality <span class="text-danger">*</span></label>
+              <select id="addr_city" class="form-select" disabled>
+                <option value="">— Select province first —</option>
+              </select>
+            </div>
+
+            <!-- Barangay -->
+            <div class="col-sm-6">
+              <label class="form-label fw-medium small">Barangay <span class="text-danger">*</span></label>
+              <select id="addr_barangay" class="form-select" disabled>
+                <option value="">— Select city first —</option>
+              </select>
+            </div>
+
+            <!-- Hidden field that stores the assembled address -->
+            {% with f=form.current_address %}
+            <input type="hidden" name="{{ f.html_name }}" id="{{ f.id_for_label }}"
+                   value="{{ f.value|default:'' }}">
+            {% for e in f.errors %}
+            <div class="col-12"><div class="text-danger small">{{ e }}</div></div>
+            {% endfor %}
+            {% endwith %}
+
+            <!-- Preview -->
+            <div class="col-12">
+              <div id="addr_preview" class="p-2 bg-light rounded small text-muted"
+                   style="min-height:2.2rem; border:1px dashed #d1d5db;">
+                <i class="bi bi-geo-alt me-1"></i><span id="addr_preview_text">Address will appear here…</span>
+              </div>
+            </div>
+
+            <!-- Contact -->
+            <div class="col-sm-6">
+              {% with f=form.contact_no %}
+              <label class="form-label fw-medium small">{{ f.label }}</label>
+              <div class="input-group">
+                <span class="input-group-text"><i class="bi bi-phone"></i></span>
+                <input type="tel" name="{{ f.html_name }}" id="{{ f.id_for_label }}"
+                       class="form-control{% if f.errors %} is-invalid{% endif %}"
+                       value="{{ f.value|default:'' }}" placeholder="09XX-XXX-XXXX">
+              </div>
+              {% for e in f.errors %}<div class="invalid-feedback">{{ e }}</div>{% endfor %}
+              {% endwith %}
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Section 7: Household Members ── -->
+      <div class="app-section">
+        <div class="app-section__header">
+          <span class="app-section__num">7</span>
+          <div>
+            <h6 class="app-section__title">Household Members</h6>
+            <p class="app-section__sub">Other family members living with the household head</p>
+          </div>
+        </div>
+        <div class="app-section__body">
+
+          <!-- Member rows container -->
+          <div id="membersContainer">
+            {% for m in existing_members %}
+            <div class="member-row" data-index="{{ forloop.counter0 }}">
+              {% include 'housing/_member_row.html' with idx=forloop.counter0 member=m %}
+            </div>
+            {% endfor %}
+          </div>
+
+          <!-- Hidden counter -->
+          <input type="hidden" id="memberCount" name="member_count"
+                 value="{{ existing_members|length }}">
+
+          <!-- Add button -->
+          <button type="button" id="addMemberBtn" class="btn btn-outline-primary btn-sm mt-2">
+            <i class="bi bi-person-plus me-1"></i>Add Member
+          </button>
+
+        </div>
+      </div>
+
+      <!-- Submit -->
+      <div class="d-flex gap-2 justify-content-end mt-1 mb-4">
+        <button type="submit" class="btn btn-primary btn-lg px-5"
+                style="background:#0038A8; border-color:#0038A8; border-radius:10px;">
+          <i class="bi bi-send me-2"></i>
+          {% if application %}Update Application{% else %}Submit Application{% endif %}
+        </button>
+      </div>
+    </form>
+
+    {% else %}
+    <!-- Read-only view after review -->
+    <div class="alert alert-info d-flex gap-2">
+      <i class="bi bi-lock-fill fs-5"></i>
+      <div>Your application has been reviewed and can no longer be edited.
+      Please contact the Barangay Hall for any changes.</div>
+    </div>
+
+    {% include 'housing/_application_readonly.html' with app=application %}
+    {% endif %}
+
+  </div>
+</div>
+
+<style>
+.app-section {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 2px 12px rgba(0,0,0,.07);
+  margin-bottom: 1.25rem;
+  overflow: hidden;
+}
+.app-section__header {
+  display: flex; align-items: center; gap: 1rem;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid #f0f0f0;
+  background: #fafbfc;
+}
+.app-section__num {
+  width: 32px; height: 32px; border-radius: 50%;
+  background: #0038A8; color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: .9rem; flex-shrink: 0;
+}
+.app-section__title { margin: 0; font-size: .95rem; font-weight: 700; color: #1e293b; }
+.app-section__sub   { margin: 0; font-size: .78rem; color: #6b7280; }
+.app-section__body  { padding: 1.25rem 1.5rem; }
+
+/* Member rows */
+.member-card { border: 1.5px solid #e5e7eb; border-radius: 10px; overflow: hidden; background: #fff; animation: fadeSlideIn .2s ease both; }
+.member-card__header { display: flex; align-items: center; justify-content: space-between; padding: .5rem .75rem; background: #f1f5f9; border-bottom: 1px solid #e5e7eb; }
+.member-card__label  { font-size: .8rem; font-weight: 600; color: #374151; }
+@keyframes fadeSlideIn { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:translateY(0); } }
+
+/* Member / HH status alert */
+.member-status { display:none; font-size:.78rem; padding:.4rem .75rem; border-radius:0 0 8px 8px; margin-top:-1px; }
+.member-status--found  { display:flex; align-items:center; gap:.4rem; background:#fef2f2; color:#dc2626; border:1px solid #fecaca; border-top:none; }
+.member-status--clear  { display:flex; align-items:center; gap:.4rem; background:#f0fdf4; color:#16a34a; border:1px solid #bbf7d0; border-top:none; }
+.member-card.member-card--found  { border-color:#dc2626; }
+.member-card.member-card--clear  { border-color:#16a34a; }
+/* Household head inline status */
+.hh-status { display:none; font-size:.78rem; padding:.5rem .75rem; border-radius:8px; }
+.hh-status--found { display:flex; align-items:center; gap:.4rem; background:#fef2f2; color:#dc2626; border:1px solid #fecaca; }
+.hh-status--clear { display:flex; align-items:center; gap:.4rem; background:#f0fdf4; color:#16a34a; border:1px solid #bbf7d0; }
+</style>
+
+<script>
+// ── Civil status: show/hide spouse fields ──────────────────────
+const civilSelect = document.getElementById('civilStatusSelect');
+const spouseFields = document.getElementById('spouseFields');
+if (civilSelect) {
+  civilSelect.addEventListener('change', function () {
+    spouseFields.style.display =
+      (this.value === 'married' || this.value === 'live_in') ? '' : 'none';
+  });
+}
+
+// ── PSGC Cascading Address Picker ──────────────────────────────
+const PSGC = 'https://psgc.gitlab.io/api';
+
+const selRegion   = document.getElementById('addr_region');
+const selProvince = document.getElementById('addr_province');
+const selCity     = document.getElementById('addr_city');
+const selBarangay = document.getElementById('addr_barangay');
+const hiddenAddr  = document.getElementById('id_current_address');
+const streetInput = document.getElementById('addr_street');
+const previewText = document.getElementById('addr_preview_text');
+
+// State
+let state = { region:'', province:'', city:'', barangay:'', street:'' };
+
+// Parse existing address back into state on page load
+(function parseExisting() {
+  const existing = (hiddenAddr.value || '').trim();
+  if (existing) {
+    previewText.textContent = existing;
+    state.street = existing;
+    streetInput.value = '';
+  }
+})();
+
+function setLoading(sel, msg) {
+  sel.innerHTML = `<option>${msg}</option>`;
+  sel.disabled = true;
+}
+function enable(sel) { sel.disabled = false; }
+function reset(...sels) {
+  sels.forEach(s => { s.innerHTML = '<option value="">— Select —</option>'; s.disabled = true; });
+}
+
+async function fetchJSON(url) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('Network error');
+  return res.json();
+}
+
+function buildOptions(sel, items, nameKey = 'name') {
+  sel.innerHTML = '<option value="">— Select —</option>';
+  items
+    .sort((a, b) => a[nameKey].localeCompare(b[nameKey]))
+    .forEach(item => {
+      const opt = document.createElement('option');
+      opt.value = item.code;
+      opt.textContent = item[nameKey];
+      sel.appendChild(opt);
+    });
+  enable(sel);
+}
+
+function updatePreview() {
+  const parts = [
+    state.street,
+    state.barangay,
+    state.city,
+    state.province,
+    state.region,
+  ].filter(Boolean);
+  const addr = parts.join(', ');
+  previewText.textContent = addr || 'Address will appear here…';
+  hiddenAddr.value = addr;
+}
+
+// Load regions on page load
+(async function loadRegions() {
+  try {
+    setLoading(selRegion, 'Loading regions…');
+    const regions = await fetchJSON(`${PSGC}/regions/`);
+    buildOptions(selRegion, regions);
+  } catch {
+    selRegion.innerHTML = '<option>Failed to load — check connection</option>';
+  }
+})();
+
+selRegion.addEventListener('change', async function () {
+  const code = this.value;
+  state.region = this.options[this.selectedIndex]?.text || '';
+  state.province = state.city = state.barangay = '';
+  reset(selProvince, selCity, selBarangay);
+  updatePreview();
+  if (!code) return;
+  try {
+    setLoading(selProvince, 'Loading provinces…');
+    const provinces = await fetchJSON(`${PSGC}/regions/${code}/provinces/`);
+    if (provinces.length === 0) {
+      // Some regions (NCR) have no provinces — go straight to cities
+      setLoading(selProvince, 'N/A (NCR)');
+      const cities = await fetchJSON(`${PSGC}/regions/${code}/cities-municipalities/`);
+      buildOptions(selCity, cities);
+    } else {
+      buildOptions(selProvince, provinces);
+    }
+  } catch { selProvince.innerHTML = '<option>Error loading provinces</option>'; }
+});
+
+selProvince.addEventListener('change', async function () {
+  const code = this.value;
+  state.province = this.options[this.selectedIndex]?.text || '';
+  state.city = state.barangay = '';
+  reset(selCity, selBarangay);
+  updatePreview();
+  if (!code) return;
+  try {
+    setLoading(selCity, 'Loading cities…');
+    const cities = await fetchJSON(`${PSGC}/provinces/${code}/cities-municipalities/`);
+    buildOptions(selCity, cities);
+  } catch { selCity.innerHTML = '<option>Error loading cities</option>'; }
+});
+
+selCity.addEventListener('change', async function () {
+  const code = this.value;
+  state.city = this.options[this.selectedIndex]?.text || '';
+  state.barangay = '';
+  reset(selBarangay);
+  updatePreview();
+  if (!code) return;
+  try {
+    setLoading(selBarangay, 'Loading barangays…');
+    const brgys = await fetchJSON(`${PSGC}/cities-municipalities/${code}/barangays/`);
+    buildOptions(selBarangay, brgys);
+  } catch { selBarangay.innerHTML = '<option>Error loading barangays</option>'; }
+});
+
+selBarangay.addEventListener('change', function () {
+  state.barangay = this.options[this.selectedIndex]?.text || '';
+  updatePreview();
+});
+
+streetInput.addEventListener('input', function () {
+  state.street = this.value.trim();
+  updatePreview();
+});
+
+// ── Household Members ───────────────────────────────────────────
+const RELATIONSHIP_OPTIONS = [
+  ['spouse','Spouse'],['child','Child'],['parent','Parent'],['sibling','Sibling'],
+  ['grandchild','Grandchild'],['grandparent','Grandparent'],
+  ['other_relative','Other Relative'],['non_relative','Non-Relative'],
+];
+
+const membersContainer = document.getElementById('membersContainer');
+const memberCountInput = document.getElementById('memberCount');
+const addMemberBtn     = document.getElementById('addMemberBtn');
+
+function getMemberCount() { return parseInt(memberCountInput.value) || 0; }
+function setMemberCount(n) { memberCountInput.value = n; }
+
+function buildMemberRow(idx) {
+  const relOptions = RELATIONSHIP_OPTIONS.map(([v,l]) =>
+    `<option value="${v}"${v==='other_relative'?' selected':''}>${l}</option>`
+  ).join('');
+
+  const card = document.createElement('div');
+  card.className = 'member-card mb-2';
+  card.id = `member_card_${idx}`;
+  card.innerHTML = `
+    <div class="member-card__header">
+      <span class="member-card__label"><i class="bi bi-person me-1"></i>Member #<span class="member-num">${idx+1}</span></span>
+      <div class="d-flex align-items-center gap-2">
+        <span class="member-checking spinner-border spinner-border-sm text-secondary" style="display:none!important;width:14px;height:14px;"></span>
+        <button type="button" class="btn btn-sm btn-outline-danger remove-member-btn" data-idx="${idx}">
+          <i class="bi bi-trash"></i>
+        </button>
+      </div>
+    </div>
+    <div class="row g-2 p-3">
+      <div class="col-sm-3">
+        <label class="form-label fw-medium small">Last Name <span class="text-danger">*</span></label>
+        <input type="text" name="member_lname_${idx}" class="form-control form-control-sm member-lname" required>
+      </div>
+      <div class="col-sm-3">
+        <label class="form-label fw-medium small">First Name <span class="text-danger">*</span></label>
+        <input type="text" name="member_fname_${idx}" class="form-control form-control-sm member-fname" required>
+      </div>
+      <div class="col-sm-2">
+        <label class="form-label fw-medium small">Middle Name</label>
+        <input type="text" name="member_mname_${idx}" class="form-control form-control-sm">
+      </div>
+      <div class="col-sm-2">
+        <label class="form-label fw-medium small">Relationship</label>
+        <select name="member_relationship_${idx}" class="form-select form-select-sm">${relOptions}</select>
+      </div>
+      <div class="col-sm-2">
+        <label class="form-label fw-medium small">Birthdate</label>
+        <input type="date" name="member_bdate_${idx}" class="form-control form-control-sm">
+      </div>
+    </div>
+    <div class="member-status"></div>`;
+
+  // Attach live-search listeners after creating
+  attachMemberSearch(card);
+  return card;
+}
+
+function renumberRows() {
+  membersContainer.querySelectorAll('.member-card').forEach((card, i) => {
+    card.id = `member_card_${i}`;
+    card.querySelector('.member-num').textContent = i + 1;
+    card.querySelectorAll('[name]').forEach(el => {
+      el.name = el.name.replace(/_\d+$/, `_${i}`);
+    });
+    const btn = card.querySelector('.remove-member-btn');
+    if (btn) btn.dataset.idx = i;
+  });
+  const count = membersContainer.querySelectorAll('.member-card').length;
+  setMemberCount(count);
+  const sizeDisplay = document.getElementById('familySizeDisplay');
+  if (sizeDisplay) sizeDisplay.textContent = (count + 1) + ' person(s)';
+}
+
+if (addMemberBtn) {
+  addMemberBtn.addEventListener('click', function () {
+    const idx = getMemberCount();
+    membersContainer.appendChild(buildMemberRow(idx));
+    renumberRows();
+  });
+}
+
+document.addEventListener('click', function (e) {
+  if (e.target.closest('.remove-member-btn')) {
+    e.target.closest('.member-card').remove();
+    renumberRows();
+  }
+});
+
+// ── Inline member duplicate check ──────────────────────────────
+function attachMemberSearch(card) {
+  const fnameInput = card.querySelector('[name^="member_fname_"]');
+  const lnameInput = card.querySelector('[name^="member_lname_"]');
+  const bdateInput = card.querySelector('[name^="member_bdate_"]');
+  const statusDiv  = card.querySelector('.member-status');
+  let timer;
+
+  function clearStatus() {
+    card.classList.remove('member-card--found', 'member-card--clear');
+    statusDiv.className = 'member-status';
+    statusDiv.innerHTML = '';
+  }
+
+  async function runSearch() {
+    const fname = (fnameInput?.value || '').trim();
+    const lname = (lnameInput?.value || '').trim();
+    const bdate = (bdateInput?.value || '').trim();
+
+    // All three fields must be filled before searching
+    if (!fname || !lname || !bdate) { clearStatus(); return; }
+
+    try {
+      const res  = await fetch(`/member-search/?fname=${encodeURIComponent(fname)}&lname=${encodeURIComponent(lname)}&bdate=${encodeURIComponent(bdate)}`);
+      const data = await res.json();
+      if (data.results && data.results.length > 0) {
+        const r = data.results[0];
+        const where = r.housed ? `Block/House ${r.house}` : r.in;
+        card.classList.add('member-card--found');
+        card.classList.remove('member-card--clear');
+        statusDiv.className = 'member-status member-status--found';
+        statusDiv.innerHTML = `<i class="bi bi-exclamation-triangle-fill"></i>
+          <span>This member already exists in another household (<strong>${where}</strong>).</span>`;
+      } else {
+        card.classList.add('member-card--clear');
+        card.classList.remove('member-card--found');
+        statusDiv.className = 'member-status member-status--clear';
+        statusDiv.innerHTML = `<i class="bi bi-check-circle-fill"></i>
+          <span>Name not found in the database — looks good.</span>`;
+      }
+    } catch { clearStatus(); }
+  }
+
+  function onInput() {
+    clearTimeout(timer);
+    const fname = (fnameInput?.value || '').trim();
+    const lname = (lnameInput?.value || '').trim();
+    const bdate = (bdateInput?.value || '').trim();
+    // Only trigger when all three are filled
+    if (!fname || !lname || !bdate) { clearStatus(); return; }
+    timer = setTimeout(runSearch, 400);
+  }
+
+  fnameInput?.addEventListener('input', onInput);
+  lnameInput?.addEventListener('input', onInput);
+  bdateInput?.addEventListener('change', onInput);
+}
+
+// Attach search to any pre-rendered existing member cards
+document.querySelectorAll('#membersContainer .member-card').forEach(card => {
+  attachMemberSearch(card);
+});
+
+// Sync family size display from actual DOM on page load
+(function () {
+  const sizeDisplay = document.getElementById('familySizeDisplay');
+  const container   = document.getElementById('membersContainer');
+  if (!sizeDisplay || !container) return;
+  const count = container.querySelectorAll('.member-card').length;
+  sizeDisplay.textContent = (count + 1) + ' person(s)';
+})();
+
+// ── Household Head duplicate check ─────────────────────────────
+(function () {
+  const hhFname  = document.getElementById('id_hh_fname');
+  const hhLname  = document.getElementById('id_hh_lname');
+  const hhBdate  = document.getElementById('id_hh_bdate');
+  const hhStatus = document.getElementById('hhStatus');
+  const hhSection = document.getElementById('hhSection');
+  if (!hhFname || !hhLname || !hhBdate || !hhStatus) return;
+
+  let hhTimer;
+
+  function clearHhStatus() {
+    hhStatus.className = 'hh-status';
+    hhStatus.innerHTML = '';
+    hhSection.style.borderColor = '';
+  }
+
+  async function runHhSearch() {
+    const fname = hhFname.value.trim();
+    const lname = hhLname.value.trim();
+    const bdate = hhBdate.value.trim();
+    if (!fname || !lname || !bdate) { clearHhStatus(); return; }
+
+    try {
+      const res  = await fetch(`/member-search/?fname=${encodeURIComponent(fname)}&lname=${encodeURIComponent(lname)}&bdate=${encodeURIComponent(bdate)}`);
+      const data = await res.json();
+      if (data.results && data.results.length > 0) {
+        const r = data.results[0];
+        const where = r.housed ? `Block/House ${r.house}` : r.in;
+        hhStatus.className = 'hh-status hh-status--found';
+        hhStatus.innerHTML = `<i class="bi bi-exclamation-triangle-fill"></i>
+          <span>This person already exists in another household (<strong>${where}</strong>).</span>`;
+      } else {
+        hhStatus.className = 'hh-status hh-status--clear';
+        hhStatus.innerHTML = `<i class="bi bi-check-circle-fill"></i>
+          <span>Name not found in the database — looks good.</span>`;
+      }
+    } catch { clearHhStatus(); }
+  }
+
+  function onHhInput() {
+    clearTimeout(hhTimer);
+    const fname = hhFname.value.trim();
+    const lname = hhLname.value.trim();
+    const bdate = hhBdate.value.trim();
+    if (!fname || !lname || !bdate) { clearHhStatus(); return; }
+    hhTimer = setTimeout(runHhSearch, 400);
+  }
+
+  hhFname.addEventListener('input', onHhInput);
+  hhLname.addEventListener('input', onHhInput);
+  hhBdate.addEventListener('change', onHhInput);
+})();
+
+// ── Household Head camera capture ──────────────────────────────
+(function () {
+  const openBtn      = document.getElementById('hhOpenCamBtn');
+  const cameraWrap   = document.getElementById('hhCameraWrap');
+  const video        = document.getElementById('hhVideo');
+  const canvas       = document.getElementById('hhCanvas');
+  const captureBtn   = document.getElementById('hhCaptureBtn');
+  const cancelBtn    = document.getElementById('hhCancelCamBtn');
+  const retakeBtn    = document.getElementById('hhRetakeBtn');
+  const preview      = document.getElementById('hhPhotoPreview');
+  const previewImg   = document.getElementById('hhPreviewImg');
+  const imageData    = document.getElementById('hhImageData');
+  const existingPhoto = document.getElementById('hhExistingPhoto');
+  if (!openBtn) return;
+
+  let stream = null;
+
+  function stopCamera() {
+    if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+    cameraWrap.style.display = 'none';
+    openBtn.style.display = '';
+  }
+
+  openBtn.addEventListener('click', async function () {
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
+      video.srcObject = stream;
+      cameraWrap.style.display = '';
+      openBtn.style.display = 'none';
+      preview.style.display = 'none';
+      if (existingPhoto) existingPhoto.style.display = 'none';
+    } catch (err) {
+      alert('Could not access the camera. Please allow camera permission and try again.');
+    }
+  });
+
+  captureBtn.addEventListener('click', function () {
+    canvas.width  = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext('2d').drawImage(video, 0, 0);
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+    imageData.value = dataUrl;
+    previewImg.src = dataUrl;
+    preview.style.display = '';
+    stopCamera();
+  });
+
+  cancelBtn.addEventListener('click', function () {
+    stopCamera();
+    if (existingPhoto) existingPhoto.style.display = '';
+  });
+
+  retakeBtn.addEventListener('click', async function () {
+    preview.style.display = 'none';
+    imageData.value = '';
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
+      video.srcObject = stream;
+      cameraWrap.style.display = '';
+      openBtn.style.display = 'none';
+    } catch (err) {
+      alert('Could not access the camera. Please allow camera permission and try again.');
+      openBtn.style.display = '';
+    }
+  });
+})();
+
+// ── National ID photo widget (reusable for front + back) ────────
+function initNidWidget(cfg) {
+  const fileInput   = document.getElementById(cfg.fileId);
+  const camBtn      = document.getElementById(cfg.camBtnId);
+  const camWrap     = document.getElementById(cfg.camWrapId);
+  const video       = document.getElementById(cfg.videoId);
+  const canvas      = document.getElementById(cfg.canvasId);
+  const captureBtn  = document.getElementById(cfg.captureId);
+  const cancelBtn   = document.getElementById(cfg.cancelCamId);
+  const clearBtn    = document.getElementById(cfg.clearBtnId);
+  const preview     = document.getElementById(cfg.previewId);
+  const previewImg  = document.getElementById(cfg.previewImgId);
+  const dataInput   = document.getElementById(cfg.dataInputId);
+  const existing    = document.getElementById(cfg.existingId);
+  if (!camBtn) return;
+
+  let stream = null;
+
+  function stopCamera() {
+    if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+    camWrap.style.display = 'none';
+  }
+
+  function showPreview(src) {
+    previewImg.src = src;
+    preview.style.display = '';
+    clearBtn.style.display = '';
+    if (existing) existing.style.display = 'none';
+  }
+
+  function clearSelection() {
+    dataInput.value = '';
+    if (fileInput) fileInput.value = '';
+    preview.style.display = 'none';
+    clearBtn.style.display = 'none';
+    if (existing) existing.style.display = '';
+  }
+
+  // Upload via file picker
+  fileInput?.addEventListener('change', function () {
+    const file = this.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      dataInput.value = e.target.result;
+      showPreview(e.target.result);
+    };
+    reader.readAsDataURL(file);
+  });
+
+  // Open camera
+  camBtn.addEventListener('click', async function () {
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+      video.srcObject = stream;
+      camWrap.style.display = '';
+      preview.style.display = 'none';
+      if (existing) existing.style.display = 'none';
+    } catch {
+      alert('Could not access the camera. Please allow camera permission and try again.');
+    }
+  });
+
+  // Capture frame
+  captureBtn.addEventListener('click', function () {
+    canvas.width  = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext('2d').drawImage(video, 0, 0);
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.90);
+    dataInput.value = dataUrl;
+    showPreview(dataUrl);
+    stopCamera();
+  });
+
+  cancelBtn.addEventListener('click', function () {
+    stopCamera();
+    if (existing) existing.style.display = '';
+  });
+
+  clearBtn.addEventListener('click', clearSelection);
+}
+
+initNidWidget({
+  fileId: 'nidFrontFile', camBtnId: 'nidFrontCamBtn', camWrapId: 'nidFrontCamWrap',
+  videoId: 'nidFrontVideo', canvasId: 'nidFrontCanvas', captureId: 'nidFrontCapture',
+  cancelCamId: 'nidFrontCancelCam', clearBtnId: 'nidFrontClearBtn',
+  previewId: 'nidFrontPreview', previewImgId: 'nidFrontPreviewImg',
+  dataInputId: 'nidFrontData', existingId: 'nidFrontExisting',
+});
+
+initNidWidget({
+  fileId: 'nidBackFile', camBtnId: 'nidBackCamBtn', camWrapId: 'nidBackCamWrap',
+  videoId: 'nidBackVideo', canvasId: 'nidBackCanvas', captureId: 'nidBackCapture',
+  cancelCamId: 'nidBackCancelCam', clearBtnId: 'nidBackClearBtn',
+  previewId: 'nidBackPreview', previewImgId: 'nidBackPreviewImg',
+  dataInputId: 'nidBackData', existingId: 'nidBackExisting',
+});
+</script>
+{% endblock %}

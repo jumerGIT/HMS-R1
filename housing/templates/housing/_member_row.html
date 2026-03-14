@@ -1,0 +1,45 @@
+{# Reusable member row — used both server-side (existing members) and JS template #}
+<div class="member-card mb-2" id="member_card_{{ idx }}">
+  <div class="member-card__header">
+    <span class="member-card__label"><i class="bi bi-person me-1"></i>Member #<span class="member-num">{{ idx|add:1 }}</span></span>
+    <button type="button" class="btn btn-sm btn-outline-danger remove-member-btn" data-idx="{{ idx }}">
+      <i class="bi bi-trash"></i>
+    </button>
+  </div>
+  <div class="row g-2 p-3">
+    <div class="col-sm-3">
+      <label class="form-label fw-medium small">Last Name <span class="text-danger">*</span></label>
+      <input type="text" name="member_lname_{{ idx }}" class="form-control form-control-sm"
+             value="{% if member %}{{ member.lname }}{% endif %}" required>
+    </div>
+    <div class="col-sm-3">
+      <label class="form-label fw-medium small">First Name <span class="text-danger">*</span></label>
+      <input type="text" name="member_fname_{{ idx }}" class="form-control form-control-sm"
+             value="{% if member %}{{ member.fname }}{% endif %}" required>
+    </div>
+    <div class="col-sm-2">
+      <label class="form-label fw-medium small">Middle Name</label>
+      <input type="text" name="member_mname_{{ idx }}" class="form-control form-control-sm"
+             value="{% if member %}{{ member.mname }}{% endif %}">
+    </div>
+    <div class="col-sm-2">
+      <label class="form-label fw-medium small">Relationship</label>
+      <select name="member_relationship_{{ idx }}" class="form-select form-select-sm">
+        <option value="spouse"         {% if member.relationship == 'spouse' %}selected{% endif %}>Spouse</option>
+        <option value="child"          {% if member.relationship == 'child' %}selected{% endif %}>Child</option>
+        <option value="parent"         {% if member.relationship == 'parent' %}selected{% endif %}>Parent</option>
+        <option value="sibling"        {% if member.relationship == 'sibling' %}selected{% endif %}>Sibling</option>
+        <option value="grandchild"     {% if member.relationship == 'grandchild' %}selected{% endif %}>Grandchild</option>
+        <option value="grandparent"    {% if member.relationship == 'grandparent' %}selected{% endif %}>Grandparent</option>
+        <option value="other_relative" {% if member.relationship == 'other_relative' or not member %}selected{% endif %}>Other Relative</option>
+        <option value="non_relative"   {% if member.relationship == 'non_relative' %}selected{% endif %}>Non-Relative</option>
+      </select>
+    </div>
+    <div class="col-sm-2">
+      <label class="form-label fw-medium small">Birthdate</label>
+      <input type="date" name="member_bdate_{{ idx }}" class="form-control form-control-sm"
+             value="{% if member and member.bdate %}{{ member.bdate|date:'Y-m-d' }}{% endif %}">
+    </div>
+  </div>
+  <div class="member-status"></div>
+</div>

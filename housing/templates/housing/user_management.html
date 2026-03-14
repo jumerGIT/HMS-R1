@@ -1,0 +1,574 @@
+{% extends 'housing/base.html' %}
+{% block title %}User Management – Admin{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css">
+<link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css">
+<style>
+.role-pill {
+  font-size:.7rem; font-weight:700; padding:.22rem .6rem;
+  border-radius:20px; letter-spacing:.03em;
+}
+.role-admin     { background:#dbeafe; color:#1d4ed8; }
+.role-housing   { background:#dcfce7; color:#166534; }
+.role-beneficiary { background:#fef9c3; color:#854d0e; }
+.role-applicant { background:#f1f5f9; color:#475569; }
+.um-modal .modal-content { border-radius:14px; border:none; box-shadow:0 8px 32px rgba(0,0,0,.15); }
+.field-err { font-size:.75rem; color:#dc3545; display:none; margin-top:.2rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+  <div>
+    <h2><i class="bi bi-people me-2"></i>User Management</h2>
+    <p>Manage all system accounts</p>
+  </div>
+  <button class="btn btn-primary" id="openCreateBtn">
+    <i class="bi bi-person-plus me-1"></i>Add Staff User
+  </button>
+</div>
+
+<div class="card tbl-card">
+  <div class="card-body">
+    <table id="userTable" class="table table-hms mb-0" style="width:100%">
+      <thead>
+        <tr>
+          <th>Username</th>
+          <th>Full Name</th>
+          <th>Email</th>
+          <th>Role</th>
+          <th>Phone</th>
+          <th>Status</th>
+          <th>Joined</th>
+          <th style="width:130px;">Actions</th>
+        </tr>
+      </thead>
+      <tbody id="userTableBody">
+        {% for u in users %}
+        <tr id="user-row-{{ u.pk }}"
+            data-pk="{{ u.pk }}"
+            data-username="{{ u.username }}"
+            data-first="{{ u.first_name }}"
+            data-last="{{ u.last_name }}"
+            data-email="{{ u.email }}"
+            data-phone="{{ u.phone }}"
+            data-role="{{ u.role }}"
+            data-active="{{ u.is_active|yesno:'1,0' }}"
+            class="{% if not u.is_active %}text-muted{% endif %}">
+          <td class="fw-semibold cell-username">{{ u.username }}</td>
+          <td class="cell-fullname">{{ u.get_full_name|default:"—" }}</td>
+          <td class="small cell-email">{{ u.email|default:"—" }}</td>
+          <td class="cell-role">
+            <span class="role-pill role-{{ u.role|cut:'_incharge'|cut:'_' }}
+              {% if u.role == 'housing_incharge' %}role-housing
+              {% elif u.role == 'beneficiary_incharge' %}role-beneficiary
+              {% elif u.role == 'admin' %}role-admin
+              {% else %}role-applicant{% endif %}">
+              {{ u.get_role_display }}
+            </span>
+          </td>
+          <td class="small cell-phone">{{ u.phone|default:"—" }}</td>
+          <td class="cell-status">
+            {% if u.is_active %}
+            <span class="status-pill status-pill-active"><span class="dot"></span>Active</span>
+            {% else %}
+            <span class="status-pill status-pill-inactive"><span class="dot"></span>Inactive</span>
+            {% endif %}
+          </td>
+          <td class="small text-muted">{{ u.date_joined|date:"M d, Y" }}</td>
+          <td>
+            {% if u != request.user %}
+            <div class="d-flex gap-1">
+              <button class="btn-icon btn-icon-edit btn-edit-user" title="Edit" data-pk="{{ u.pk }}">
+                <i class="bi bi-pencil"></i>
+              </button>
+              <button class="btn-icon btn-toggle-user {% if u.is_active %}btn-icon-pause{% else %}btn-icon-play{% endif %}"
+                title="{% if u.is_active %}Deactivate{% else %}Activate{% endif %}"
+                data-pk="{{ u.pk }}" data-active="{{ u.is_active|yesno:'1,0' }}">
+                <i class="bi bi-{% if u.is_active %}pause-circle{% else %}play-circle{% endif %}"></i>
+              </button>
+              <button class="btn-icon btn-icon-danger btn-delete-user" title="Delete"
+                data-pk="{{ u.pk }}" data-username="{{ u.username }}">
+                <i class="bi bi-trash"></i>
+              </button>
+            </div>
+            {% else %}
+            <span style="font-size:.75rem; color:#94a3b8; display:inline-flex; align-items:center; gap:4px;">
+              <i class="bi bi-person-check"></i>You
+            </span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+
+<!-- ══ CREATE MODAL ══════════════════════════════════════════════════════════ -->
+<div class="modal fade um-modal" id="createModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:480px;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title fw-bold"><i class="bi bi-person-plus me-2"></i>Add Staff User</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+
+      <!-- Step 1: form -->
+      <div id="createFormStep">
+        <div class="modal-body">
+          <div id="createErr" class="alert alert-danger py-2 small" style="display:none;"></div>
+          <div class="row g-2">
+            <div class="col-6">
+              <label class="form-label small fw-semibold">First Name</label>
+              <input type="text" class="form-control form-control-sm" id="c_first_name">
+            </div>
+            <div class="col-6">
+              <label class="form-label small fw-semibold">Last Name</label>
+              <input type="text" class="form-control form-control-sm" id="c_last_name">
+            </div>
+            <div class="col-12">
+              <label class="form-label small fw-semibold">Username <span class="text-danger">*</span></label>
+              <input type="text" class="form-control form-control-sm" id="c_username" autocomplete="off">
+            </div>
+            <div class="col-12">
+              <label class="form-label small fw-semibold">Email</label>
+              <input type="email" class="form-control form-control-sm" id="c_email">
+            </div>
+            <div class="col-12">
+              <label class="form-label small fw-semibold">Phone</label>
+              <input type="text" class="form-control form-control-sm" id="c_phone">
+            </div>
+            <div class="col-12">
+              <label class="form-label small fw-semibold">Role <span class="text-danger">*</span></label>
+              <select class="form-select form-select-sm" id="c_role">
+                <option value="housing_incharge">Housing Incharge</option>
+                <option value="beneficiary_incharge">Beneficiary Incharge</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
+          </div>
+          <p class="text-muted small mt-3 mb-0">
+            <i class="bi bi-info-circle me-1"></i>
+            A temporary password will be generated automatically. Share it with the user — they must change it on first login.
+          </p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-primary btn-sm" id="createSubmitBtn">
+            <i class="bi bi-check-lg me-1"></i>Create User
+          </button>
+        </div>
+      </div>
+
+      <!-- Step 2: show generated password -->
+      <div id="createSuccessStep" style="display:none;">
+        <div class="modal-body text-center py-4">
+          <div class="mb-3">
+            <span style="font-size:2.5rem;">🎉</span>
+          </div>
+          <h6 class="fw-bold mb-1">User created successfully!</h6>
+          <p class="text-muted small mb-3">Share this temporary password with the user. They will be required to change it on first login.</p>
+
+          <div class="d-flex align-items-center gap-2 justify-content-center mb-3">
+            <code id="generatedPassword"
+              style="font-size:1.2rem; background:#f1f5f9; padding:.5rem 1rem; border-radius:8px; border:1px solid #e2e8f0; letter-spacing:.1em; user-select:all;">
+            </code>
+            <button class="btn btn-sm btn-outline-secondary" id="copyPwBtn" title="Copy password">
+              <i class="bi bi-clipboard"></i>
+            </button>
+          </div>
+          <p class="text-warning small"><i class="bi bi-exclamation-triangle me-1"></i>This password will not be shown again.</p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-success btn-sm" data-bs-dismiss="modal">
+            <i class="bi bi-check-lg me-1"></i>Done
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+
+<!-- ══ EDIT MODAL ════════════════════════════════════════════════════════════ -->
+<div class="modal fade um-modal" id="editModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:480px;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title fw-bold"><i class="bi bi-pencil-square me-2"></i>Edit User</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div id="editErr" class="alert alert-danger py-2 small" style="display:none;"></div>
+        <input type="hidden" id="e_pk">
+        <div class="row g-2">
+          <div class="col-6">
+            <label class="form-label small fw-semibold">First Name</label>
+            <input type="text" class="form-control form-control-sm" id="e_first_name">
+          </div>
+          <div class="col-6">
+            <label class="form-label small fw-semibold">Last Name</label>
+            <input type="text" class="form-control form-control-sm" id="e_last_name">
+          </div>
+          <div class="col-12">
+            <label class="form-label small fw-semibold">Username <span class="text-danger">*</span></label>
+            <input type="text" class="form-control form-control-sm" id="e_username" autocomplete="off">
+          </div>
+          <div class="col-12">
+            <label class="form-label small fw-semibold">Email</label>
+            <input type="email" class="form-control form-control-sm" id="e_email">
+          </div>
+          <div class="col-12">
+            <label class="form-label small fw-semibold">Phone</label>
+            <input type="text" class="form-control form-control-sm" id="e_phone">
+          </div>
+          <div class="col-12">
+            <label class="form-label small fw-semibold">Role <span class="text-danger">*</span></label>
+            <select class="form-select form-select-sm" id="e_role">
+              <option value="housing_incharge">Housing Incharge</option>
+              <option value="beneficiary_incharge">Beneficiary Incharge</option>
+              <option value="admin">Admin</option>
+              <option value="applicant">Applicant</option>
+            </select>
+          </div>
+          <div class="col-12">
+            <p class="text-muted small mb-1">Leave password blank to keep existing password.</p>
+          </div>
+          <div class="col-6">
+            <label class="form-label small fw-semibold">New Password</label>
+            <input type="password" class="form-control form-control-sm" id="e_password" autocomplete="new-password">
+          </div>
+          <div class="col-6">
+            <label class="form-label small fw-semibold">Confirm Password</label>
+            <input type="password" class="form-control form-control-sm" id="e_password2">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary btn-sm" id="editSubmitBtn">
+          <i class="bi bi-check-lg me-1"></i>Save Changes
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══ DELETE CONFIRM MODAL ═══════════════════════════════════════════════════ -->
+<div class="modal fade um-modal" id="deleteModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:380px;">
+    <div class="modal-content">
+      <div class="modal-header border-0 pb-0">
+        <h5 class="modal-title fw-bold text-danger"><i class="bi bi-exclamation-triangle me-2"></i>Delete User</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-1">Are you sure you want to delete <strong id="deleteUsername"></strong>?</p>
+        <p class="text-muted small mb-0">This action cannot be undone.</p>
+        <div id="deleteErr" class="alert alert-danger py-2 small mt-2" style="display:none;"></div>
+        <input type="hidden" id="d_pk">
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-danger btn-sm" id="deleteConfirmBtn">
+          <i class="bi bi-trash me-1"></i>Delete
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
+<script>
+$(document).ready(function () {
+  $('#userTable').DataTable({
+    dom: "<'dt-top'lf><'dt-buttons mb-2'B><'table-responsive'tr><'dt-bottom'ip>",
+    pageLength: 10,
+    lengthMenu: [[10, 25, 50, -1], [10, 25, 50, 'All']],
+    order: [[6, 'desc']],
+    columnDefs: [{ orderable: false, targets: 7 }],
+    buttons: [
+      { extend: 'csv', text: '<i class="bi bi-file-earmark-spreadsheet me-1"></i>CSV', className: 'export-btn export-csv', exportOptions: { columns: ':not(:last-child)' } },
+      { extend: 'pdf', text: '<i class="bi bi-file-earmark-pdf me-1"></i>PDF', className: 'export-btn export-pdf', exportOptions: { columns: ':not(:last-child)' }, orientation: 'landscape', pageSize: 'A4' },
+    ],
+    language: {
+      search: '',
+      searchPlaceholder: 'Search users…',
+      lengthMenu: 'Show _MENU_',
+      info: 'Showing _START_–_END_ of _TOTAL_ users',
+      emptyTable: 'No users found.',
+      paginate: { previous: '‹', next: '›' },
+    },
+  });
+});
+
+const CSRF = '{{ csrf_token }}';
+
+function rolePill(role, display) {
+  const map = {
+    admin: 'role-admin',
+    housing_incharge: 'role-housing',
+    beneficiary_incharge: 'role-beneficiary',
+    applicant: 'role-applicant',
+  };
+  return `<span class="role-pill ${map[role] || 'role-applicant'}">${display}</span>`;
+}
+
+function statusCell(isActive) {
+  return isActive
+    ? `<span class="status-pill status-pill-active"><span class="dot"></span>Active</span>`
+    : `<span class="status-pill status-pill-inactive"><span class="dot"></span>Inactive</span>`;
+}
+
+function actionBtns(pk, username, isActive) {
+  const toggleIcon  = isActive ? 'pause-circle' : 'play-circle';
+  const toggleClass = isActive ? 'btn-icon-pause' : 'btn-icon-play';
+  const toggleTitle = isActive ? 'Deactivate' : 'Activate';
+  return `<div class="d-flex gap-1">
+    <button class="btn-icon btn-icon-edit btn-edit-user" title="Edit" data-pk="${pk}"><i class="bi bi-pencil"></i></button>
+    <button class="btn-icon ${toggleClass} btn-toggle-user" title="${toggleTitle}" data-pk="${pk}" data-active="${isActive ? 1 : 0}"><i class="bi bi-${toggleIcon}"></i></button>
+    <button class="btn-icon btn-icon-danger btn-delete-user" title="Delete" data-pk="${pk}" data-username="${username}"><i class="bi bi-trash"></i></button>
+  </div>`;
+}
+
+// ── Open create modal ─────────────────────────────────────────────────────────
+document.getElementById('openCreateBtn').addEventListener('click', function() {
+  document.getElementById('createErr').style.display = 'none';
+  ['c_first_name','c_last_name','c_username','c_email','c_phone'].forEach(function(id) {
+    document.getElementById(id).value = '';
+  });
+  document.getElementById('c_role').value = 'housing_incharge';
+  document.getElementById('createFormStep').style.display = '';
+  document.getElementById('createSuccessStep').style.display = 'none';
+  new bootstrap.Modal(document.getElementById('createModal')).show();
+});
+
+// ── Submit create ─────────────────────────────────────────────────────────────
+document.getElementById('createSubmitBtn').addEventListener('click', function() {
+  const btn = this;
+  const errEl = document.getElementById('createErr');
+  errEl.style.display = 'none';
+
+  const payload = {
+    username:   document.getElementById('c_username').value.trim(),
+    first_name: document.getElementById('c_first_name').value.trim(),
+    last_name:  document.getElementById('c_last_name').value.trim(),
+    email:      document.getElementById('c_email').value.trim(),
+    phone:      document.getElementById('c_phone').value.trim(),
+    role:       document.getElementById('c_role').value,
+  };
+
+  btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Creating…';
+
+  fetch('/users/create/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+    body: JSON.stringify(payload),
+  })
+  .then(r => r.json())
+  .then(data => {
+    btn.disabled = false; btn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Create User';
+    if (!data.ok) { errEl.textContent = data.error; errEl.style.display = ''; return; }
+
+    // Add row to table
+    const u = data.user;
+    const tr = document.createElement('tr');
+    tr.id = 'user-row-' + u.pk;
+    tr.dataset.pk       = u.pk;
+    tr.dataset.username = u.username;
+    tr.dataset.first    = payload.first_name;
+    tr.dataset.last     = payload.last_name;
+    tr.dataset.email    = payload.email;
+    tr.dataset.phone    = payload.phone;
+    tr.dataset.role     = u.role;
+    tr.dataset.active   = '1';
+    tr.innerHTML = `
+      <td class="fw-semibold cell-username">${u.username}</td>
+      <td class="cell-fullname">${u.full_name}</td>
+      <td class="small cell-email">${u.email}</td>
+      <td class="cell-role">${rolePill(u.role, u.role_display)}</td>
+      <td class="small cell-phone">${u.phone}</td>
+      <td class="cell-status">${statusCell(true)}</td>
+      <td class="small text-muted">${u.date_joined}</td>
+      <td>${actionBtns(u.pk, u.username, true)}</td>`;
+    $('#userTable').DataTable().row.add(tr).draw(false);
+
+    // Show password step
+    document.getElementById('generatedPassword').textContent = data.temp_password;
+    document.getElementById('createFormStep').style.display = 'none';
+    document.getElementById('createSuccessStep').style.display = '';
+  })
+  .catch(() => {
+    btn.disabled = false; btn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Create User';
+    errEl.textContent = 'Network error. Try again.'; errEl.style.display = '';
+  });
+});
+
+// ── Copy password button ──────────────────────────────────────────────────────
+document.getElementById('copyPwBtn').addEventListener('click', function() {
+  const pw = document.getElementById('generatedPassword').textContent.trim();
+  navigator.clipboard.writeText(pw).then(() => {
+    this.innerHTML = '<i class="bi bi-clipboard-check text-success"></i>';
+    setTimeout(() => { this.innerHTML = '<i class="bi bi-clipboard"></i>'; }, 2000);
+  });
+});
+
+// ── Open edit modal ───────────────────────────────────────────────────────────
+function openEdit(pk) {
+  const row = document.getElementById('user-row-' + pk);
+  if (!row) return;
+  document.getElementById('editErr').style.display = 'none';
+  document.getElementById('e_pk').value         = pk;
+  document.getElementById('e_username').value   = row.dataset.username;
+  document.getElementById('e_first_name').value = row.dataset.first;
+  document.getElementById('e_last_name').value  = row.dataset.last;
+  document.getElementById('e_email').value      = row.dataset.email;
+  document.getElementById('e_phone').value      = row.dataset.phone;
+  document.getElementById('e_role').value       = row.dataset.role;
+  document.getElementById('e_password').value   = '';
+  document.getElementById('e_password2').value  = '';
+  new bootstrap.Modal(document.getElementById('editModal')).show();
+}
+
+// ── Submit edit ───────────────────────────────────────────────────────────────
+document.getElementById('editSubmitBtn').addEventListener('click', function() {
+  const btn = this;
+  const pk  = document.getElementById('e_pk').value;
+  const errEl = document.getElementById('editErr');
+  errEl.style.display = 'none';
+
+  const payload = {
+    username:   document.getElementById('e_username').value.trim(),
+    first_name: document.getElementById('e_first_name').value.trim(),
+    last_name:  document.getElementById('e_last_name').value.trim(),
+    email:      document.getElementById('e_email').value.trim(),
+    phone:      document.getElementById('e_phone').value.trim(),
+    role:       document.getElementById('e_role').value,
+    password:   document.getElementById('e_password').value,
+    password2:  document.getElementById('e_password2').value,
+  };
+
+  btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving…';
+
+  fetch('/users/' + pk + '/edit/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+    body: JSON.stringify(payload),
+  })
+  .then(r => r.json())
+  .then(data => {
+    btn.disabled = false; btn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Save Changes';
+    if (!data.ok) { errEl.textContent = data.error; errEl.style.display = ''; return; }
+
+    const u   = data.user;
+    const row = document.getElementById('user-row-' + pk);
+    row.dataset.username = u.username;
+    row.dataset.first    = payload.first_name;
+    row.dataset.last     = payload.last_name;
+    row.dataset.email    = payload.email;
+    row.dataset.phone    = payload.phone;
+    row.dataset.role     = u.role;
+
+    row.querySelector('.cell-username').textContent = u.username;
+    row.querySelector('.cell-fullname').textContent = u.full_name;
+    row.querySelector('.cell-email').textContent    = u.email;
+    row.querySelector('.cell-phone').textContent    = u.phone;
+    row.querySelector('.cell-role').innerHTML       = rolePill(u.role, u.role_display);
+
+    bootstrap.Modal.getInstance(document.getElementById('editModal')).hide();
+  })
+  .catch(() => {
+    btn.disabled = false; btn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Save Changes';
+    errEl.textContent = 'Network error. Try again.'; errEl.style.display = '';
+  });
+});
+
+// ── Toggle active ─────────────────────────────────────────────────────────────
+function toggleActive(pk) {
+  fetch('/users/' + pk + '/toggle/', {
+    method: 'POST',
+    headers: { 'X-CSRFToken': CSRF },
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (!data.ok) { alert(data.error || 'Error'); return; }
+    const isActive = data.is_active;
+    const row = document.getElementById('user-row-' + pk);
+    row.dataset.active = isActive ? '1' : '0';
+    row.classList.toggle('text-muted', !isActive);
+    row.querySelector('.cell-status').innerHTML = statusCell(isActive);
+
+    // Update toggle button
+    const toggleBtn = row.querySelector('.btn-toggle-user');
+    toggleBtn.className = 'btn-icon btn-toggle-user ' + (isActive ? 'btn-icon-pause' : 'btn-icon-play');
+    toggleBtn.title = isActive ? 'Deactivate' : 'Activate';
+    toggleBtn.dataset.active = isActive ? '1' : '0';
+    toggleBtn.innerHTML = `<i class="bi bi-${isActive ? 'pause-circle' : 'play-circle'}"></i>`;
+  })
+  .catch(() => alert('Network error.'));
+}
+
+// ── Open delete modal ─────────────────────────────────────────────────────────
+function openDelete(pk, username) {
+  document.getElementById('d_pk').value = pk;
+  document.getElementById('deleteUsername').textContent = username;
+  document.getElementById('deleteErr').style.display = 'none';
+  new bootstrap.Modal(document.getElementById('deleteModal')).show();
+}
+
+// ── Confirm delete ────────────────────────────────────────────────────────────
+document.getElementById('deleteConfirmBtn').addEventListener('click', function() {
+  const btn = this;
+  const pk  = document.getElementById('d_pk').value;
+  const errEl = document.getElementById('deleteErr');
+
+  btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Deleting…';
+
+  fetch('/users/' + pk + '/delete/', {
+    method: 'POST',
+    headers: { 'X-CSRFToken': CSRF },
+  })
+  .then(r => r.json())
+  .then(data => {
+    btn.disabled = false; btn.innerHTML = '<i class="bi bi-trash me-1"></i>Delete';
+    if (!data.ok) { errEl.textContent = data.error; errEl.style.display = ''; return; }
+
+    const dt  = $('#userTable').DataTable();
+    const row = document.getElementById('user-row-' + pk);
+    dt.row(row).remove().draw(false);
+
+    bootstrap.Modal.getInstance(document.getElementById('deleteModal')).hide();
+  })
+  .catch(() => {
+    btn.disabled = false; btn.innerHTML = '<i class="bi bi-trash me-1"></i>Delete';
+    errEl.textContent = 'Network error. Try again.'; errEl.style.display = '';
+  });
+});
+
+// ── Delegated event handler (works for server-rendered + dynamically added rows) ──
+document.addEventListener('click', function(e) {
+  const editBtn   = e.target.closest('.btn-edit-user');
+  const toggleBtn = e.target.closest('.btn-toggle-user');
+  const deleteBtn = e.target.closest('.btn-delete-user');
+  if (editBtn)   openEdit(editBtn.dataset.pk);
+  if (toggleBtn) toggleActive(toggleBtn.dataset.pk);
+  if (deleteBtn) openDelete(deleteBtn.dataset.pk, deleteBtn.dataset.username);
+});
+</script>
+{% endblock %}

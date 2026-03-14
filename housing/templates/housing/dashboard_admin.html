@@ -1,0 +1,407 @@
+{% extends 'housing/base.html' %}
+{% block title %}Admin Dashboard – ECIMMS{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+<style>
+/* ── Stat card ── */
+.kpi-card {
+  border: none; border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0,0,0,.06), 0 4px 16px rgba(0,0,0,.06);
+  padding: 1.1rem 1.25rem;
+  display: flex; flex-direction: column; gap: .35rem;
+  text-decoration: none; color: inherit;
+  transition: transform .15s, box-shadow .15s;
+  cursor: pointer; position: relative; overflow: hidden;
+}
+.kpi-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 4px 20px rgba(0,0,0,.12);
+  color: inherit; text-decoration: none;
+}
+.kpi-card::before {
+  content: ''; position: absolute; top: 0; left: 0;
+  width: 4px; height: 100%; border-radius: 4px 0 0 4px;
+}
+.kpi-blue::before   { background: #0038A8; }
+.kpi-green::before  { background: #16a34a; }
+.kpi-red::before    { background: #dc2626; }
+.kpi-amber::before  { background: #d97706; }
+.kpi-purple::before { background: #7c3aed; }
+.kpi-slate::before  { background: #64748b; }
+
+.kpi-label { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #94a3b8; }
+.kpi-value { font-size: 2rem; font-weight: 800; color: #1e293b; line-height: 1; }
+.kpi-sub   { font-size: .75rem; color: #94a3b8; margin-top: .1rem; }
+.kpi-icon  {
+  position: absolute; right: 1rem; top: 50%; transform: translateY(-50%);
+  font-size: 2.2rem; opacity: .07;
+}
+
+/* ── Progress bar ── */
+.occ-bar { height: 5px; border-radius: 3px; background: #f1f5f9; overflow: hidden; margin-top: .5rem; }
+.occ-fill { height: 100%; border-radius: 3px; transition: width .6s ease; }
+
+/* ── Chart card ── */
+.chart-card {
+  background: #fff; border-radius: 14px; border: none;
+  box-shadow: 0 1px 3px rgba(0,0,0,.06), 0 4px 16px rgba(0,0,0,.06);
+  overflow: hidden;
+}
+.chart-card .chart-header {
+  padding: .9rem 1.25rem .6rem;
+  border-bottom: 1px solid #f1f5f9;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.chart-card .chart-title {
+  font-size: .82rem; font-weight: 700; color: #1e293b; margin: 0;
+  display: flex; align-items: center; gap: .45rem;
+}
+.chart-card .chart-title i { color: #0038A8; }
+.chart-card .chart-body { padding: 1rem 1.25rem; }
+
+/* ── Recent allocations table ── */
+.alloc-row td { font-size: .82rem; padding: .62rem .9rem; vertical-align: middle; border-bottom: 1px solid #f8fafc; }
+.alloc-row:last-child td { border-bottom: none; }
+.house-badge {
+  font-size: .72rem; font-weight: 700;
+  background: #eff6ff; color: #1d4ed8;
+  border: 1px solid #dbeafe; border-radius: 6px;
+  padding: .18rem .55rem; font-family: monospace;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Page header -->
+<div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+  <div>
+    <h2 class="mb-0"><i class="bi bi-speedometer2 me-2"></i>Admin Dashboard</h2>
+    <p class="mb-0 mt-1">Full system overview — Escalante City Housing Village</p>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    <a href="{% url 'application_list' %}?status=pending" class="btn btn-warning btn-sm fw-semibold" style="border-radius:8px;">
+      <i class="bi bi-clock me-1"></i>{{ pending_applications }} Pending
+    </a>
+    <a href="{% url 'application_list' %}?status=approved" class="btn btn-success btn-sm fw-semibold" style="border-radius:8px;">
+      <i class="bi bi-hourglass-split me-1"></i>{{ pending_allocations }} Unhoused
+    </a>
+  </div>
+</div>
+
+<!-- ── KPI Row 1: Houses ── -->
+<div class="row g-3 mb-3">
+  <div class="col-6 col-md-3">
+    <a href="{% url 'house_list' %}" class="kpi-card kpi-blue">
+      <div class="kpi-label">Total Houses</div>
+      <div class="kpi-value">{{ total_houses }}</div>
+      <div class="kpi-sub">Site 1 + Site 2</div>
+      <div class="occ-bar"><div class="occ-fill" style="width:100%; background:#0038A8;"></div></div>
+      <i class="bi bi-houses kpi-icon"></i>
+    </a>
+  </div>
+  <div class="col-6 col-md-3">
+    <a href="{% url 'house_list' %}" class="kpi-card kpi-green">
+      <div class="kpi-label">Available</div>
+      <div class="kpi-value" style="color:#16a34a;">{{ available_houses }}</div>
+      <div class="kpi-sub">Ready to allocate</div>
+      <div class="occ-bar"><div class="occ-fill" style="width:{% if total_houses %}{% widthratio available_houses total_houses 100 %}{% else %}0{% endif %}%; background:#16a34a;"></div></div>
+      <i class="bi bi-house-check kpi-icon"></i>
+    </a>
+  </div>
+  <div class="col-6 col-md-3">
+    <a href="{% url 'housed_list' %}" class="kpi-card kpi-red">
+      <div class="kpi-label">Occupied</div>
+      <div class="kpi-value" style="color:#dc2626;">{{ occupied_houses }}</div>
+      <div class="kpi-sub">Houses with residents</div>
+      <div class="occ-bar"><div class="occ-fill" style="width:{% if total_houses %}{% widthratio occupied_houses total_houses 100 %}{% else %}0{% endif %}%; background:#dc2626;"></div></div>
+      <i class="bi bi-house-x kpi-icon"></i>
+    </a>
+  </div>
+  <div class="col-6 col-md-3">
+    <a href="{% url 'application_list' %}?status=approved" class="kpi-card kpi-amber">
+      <div class="kpi-label">Awaiting House</div>
+      <div class="kpi-value" style="color:#d97706;">{{ pending_allocations }}</div>
+      <div class="kpi-sub">Approved, not yet housed</div>
+      <div class="occ-bar"><div class="occ-fill" style="width:{% if approved_applications %}{% widthratio pending_allocations approved_applications 100 %}{% else %}0{% endif %}%; background:#d97706;"></div></div>
+      <i class="bi bi-person-exclamation kpi-icon"></i>
+    </a>
+  </div>
+</div>
+
+<!-- ── KPI Row 2: Applications + Users ── -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3">
+    <a href="{% url 'application_list' %}" class="kpi-card kpi-blue">
+      <div class="kpi-label">Applications</div>
+      <div class="kpi-value">{{ total_applications }}</div>
+      <div class="kpi-sub">All submissions</div>
+      <i class="bi bi-file-earmark-text kpi-icon"></i>
+    </a>
+  </div>
+  <div class="col-6 col-md-3">
+    <a href="{% url 'application_list' %}?status=pending" class="kpi-card kpi-amber">
+      <div class="kpi-label">Pending Review</div>
+      <div class="kpi-value" style="color:#d97706;">{{ pending_applications }}</div>
+      <div class="kpi-sub">Need attention</div>
+      <i class="bi bi-hourglass-split kpi-icon"></i>
+    </a>
+  </div>
+  <div class="col-6 col-md-3">
+    <a href="{% url 'user_management' %}" class="kpi-card kpi-purple">
+      <div class="kpi-label">Staff Accounts</div>
+      <div class="kpi-value" style="color:#7c3aed;">{{ total_staff }}</div>
+      <div class="kpi-sub">Admin + Incharge</div>
+      <i class="bi bi-shield-person kpi-icon"></i>
+    </a>
+  </div>
+  <div class="col-6 col-md-3">
+    <a href="{% url 'housed_list' %}" class="kpi-card kpi-slate">
+      <div class="kpi-label">Beneficiaries</div>
+      <div class="kpi-value" style="color:#475569;">{{ total_beneficiaries }}</div>
+      <div class="kpi-sub">Registered applicants</div>
+      <i class="bi bi-people-fill kpi-icon"></i>
+    </a>
+  </div>
+</div>
+
+<!-- ── Charts row ── -->
+<div class="row g-3 mb-4">
+
+  <!-- Donut: Housing Status -->
+  <div class="col-md-4">
+    <div class="chart-card h-100">
+      <div class="chart-header">
+        <h6 class="chart-title"><i class="bi bi-house-door"></i>Housing Status</h6>
+      </div>
+      <div class="chart-body d-flex flex-column align-items-center">
+        <div style="position:relative; width:170px; height:170px;">
+          <canvas id="housingDonut"></canvas>
+          <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;pointer-events:none;">
+            <div style="font-size:1.5rem;font-weight:800;color:#1e293b;">{{ total_houses }}</div>
+            <div style="font-size:.65rem;color:#94a3b8;font-weight:600;text-transform:uppercase;">Total</div>
+          </div>
+        </div>
+        <div class="d-flex gap-3 mt-3" style="font-size:.75rem;">
+          <span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#16a34a;margin-right:4px;"></span>Available {{ available_houses }}</span>
+          <span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#dc2626;margin-right:4px;"></span>Occupied {{ occupied_houses }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Donut: Application Status -->
+  <div class="col-md-4">
+    <div class="chart-card h-100">
+      <div class="chart-header">
+        <h6 class="chart-title"><i class="bi bi-file-earmark-text"></i>Application Status</h6>
+      </div>
+      <div class="chart-body d-flex flex-column align-items-center">
+        <div style="position:relative; width:170px; height:170px;">
+          <canvas id="appDonut"></canvas>
+          <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;pointer-events:none;">
+            <div style="font-size:1.5rem;font-weight:800;color:#1e293b;">{{ total_applications }}</div>
+            <div style="font-size:.65rem;color:#94a3b8;font-weight:600;text-transform:uppercase;">Total</div>
+          </div>
+        </div>
+        <div class="d-flex gap-2 flex-wrap justify-content-center mt-3" style="font-size:.75rem;">
+          <span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#d97706;margin-right:4px;"></span>Pending {{ pending_applications }}</span>
+          <span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#16a34a;margin-right:4px;"></span>Approved {{ approved_applications }}</span>
+          <span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#94a3b8;margin-right:4px;"></span>Rejected {{ rejected_applications }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bar: Site Comparison -->
+  <div class="col-md-4">
+    <div class="chart-card h-100">
+      <div class="chart-header">
+        <h6 class="chart-title"><i class="bi bi-bar-chart"></i>Site Comparison</h6>
+      </div>
+      <div class="chart-body">
+        <canvas id="siteBar" height="180"></canvas>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── Allocation trend + Recent allocations ── -->
+<div class="row g-3">
+
+  <!-- Monthly allocation trend -->
+  <div class="col-md-5">
+    <div class="chart-card h-100">
+      <div class="chart-header">
+        <h6 class="chart-title"><i class="bi bi-graph-up"></i>Monthly Allocations</h6>
+        <span style="font-size:.72rem;color:#94a3b8;">Last 6 months</span>
+      </div>
+      <div class="chart-body">
+        {% if monthly_data_json != '[]' %}
+        <canvas id="allocTrend" height="160"></canvas>
+        {% else %}
+        <div class="d-flex flex-column align-items-center justify-content-center py-4 text-muted">
+          <i class="bi bi-graph-up" style="font-size:2rem;opacity:.3;"></i>
+          <small class="mt-2">No allocation data yet.</small>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Recent allocations -->
+  <div class="col-md-7">
+    <div class="chart-card h-100">
+      <div class="chart-header">
+        <h6 class="chart-title"><i class="bi bi-clock-history"></i>Recent Allocations</h6>
+        <a href="{% url 'housed_list' %}" style="font-size:.75rem;color:#0038A8;text-decoration:none;">View all →</a>
+      </div>
+      <div class="chart-body p-0">
+        {% if recent_allocations %}
+        <table class="table mb-0">
+          <thead style="background:#f8fafc;">
+            <tr>
+              <th style="font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;border:none;padding:.65rem .9rem;">House</th>
+              <th style="font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;border:none;padding:.65rem .9rem;">Beneficiary</th>
+              <th style="font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;border:none;padding:.65rem .9rem;">By</th>
+              <th style="font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;border:none;padding:.65rem .9rem;">Date</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for a in recent_allocations %}
+            <tr class="alloc-row">
+              <td><span class="house-badge">{{ a.house.house_number|truncatechars:22 }}</span></td>
+              <td class="fw-semibold">{{ a.beneficiary.get_full_name|default:a.beneficiary.username }}</td>
+              <td class="text-muted">{{ a.allocated_by.get_full_name|default:a.allocated_by.username }}</td>
+              <td style="color:#94a3b8;font-size:.78rem;">{{ a.date|date:"M d, Y" }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <div class="d-flex flex-column align-items-center justify-content-center py-5 text-muted">
+          <i class="bi bi-clock-history" style="font-size:2rem;opacity:.3;"></i>
+          <small class="mt-2">No allocations recorded yet.</small>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const BLUE   = '#0038A8';
+const GREEN  = '#16a34a';
+const RED    = '#dc2626';
+const AMBER  = '#d97706';
+const SLATE  = '#94a3b8';
+const LIGHT_GREEN = '#dcfce7';
+const LIGHT_RED   = '#fee2e2';
+
+Chart.defaults.font.family = "'Segoe UI', sans-serif";
+Chart.defaults.plugins.legend.display = false;
+
+// ── Donut: Housing Status ──────────────────────────────────────────
+new Chart(document.getElementById('housingDonut'), {
+  type: 'doughnut',
+  data: {
+    labels: ['Available', 'Occupied'],
+    datasets: [{
+      data: [{{ available_houses }}, {{ occupied_houses }}],
+      backgroundColor: [GREEN, RED],
+      borderColor: '#fff', borderWidth: 3,
+      hoverOffset: 6,
+    }]
+  },
+  options: {
+    cutout: '72%',
+    plugins: { tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.parsed}` } } },
+    animation: { animateRotate: true, duration: 800 },
+  }
+});
+
+// ── Donut: Application Status ──────────────────────────────────────
+new Chart(document.getElementById('appDonut'), {
+  type: 'doughnut',
+  data: {
+    labels: ['Pending', 'Approved', 'Rejected'],
+    datasets: [{
+      data: [{{ pending_applications }}, {{ approved_applications }}, {{ rejected_applications }}],
+      backgroundColor: [AMBER, GREEN, SLATE],
+      borderColor: '#fff', borderWidth: 3,
+      hoverOffset: 6,
+    }]
+  },
+  options: {
+    cutout: '72%',
+    plugins: { tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.parsed}` } } },
+    animation: { animateRotate: true, duration: 800 },
+  }
+});
+
+// ── Bar: Site Comparison ───────────────────────────────────────────
+new Chart(document.getElementById('siteBar'), {
+  type: 'bar',
+  data: {
+    labels: ['Site 1 – Old Poblacion', 'Site 2 – Washington'],
+    datasets: [
+      {
+        label: 'Available',
+        data: [{{ s1_avail }}, {{ s2_avail }}],
+        backgroundColor: '#dcfce7', borderColor: GREEN,
+        borderWidth: 1.5, borderRadius: 6,
+      },
+      {
+        label: 'Occupied',
+        data: [{{ s1_occ }}, {{ s2_occ }}],
+        backgroundColor: '#fee2e2', borderColor: RED,
+        borderWidth: 1.5, borderRadius: 6,
+      },
+    ]
+  },
+  options: {
+    responsive: true,
+    plugins: {
+      legend: { display: true, position: 'bottom', labels: { font: { size: 11 }, boxWidth: 12, padding: 12 } },
+    },
+    scales: {
+      x: { grid: { display: false }, ticks: { font: { size: 11 } } },
+      y: { beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { precision: 0, font: { size: 11 } } }
+    },
+    animation: { duration: 700 },
+  }
+});
+
+// ── Line: Monthly Allocations ──────────────────────────────────────
+{% if monthly_data_json != '[]' %}
+new Chart(document.getElementById('allocTrend'), {
+  type: 'bar',
+  data: {
+    labels: {{ monthly_labels_json|safe }},
+    datasets: [{
+      label: 'Allocations',
+      data: {{ monthly_data_json|safe }},
+      backgroundColor: 'rgba(0,56,168,.12)',
+      borderColor: BLUE,
+      borderWidth: 2, borderRadius: 6,
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { grid: { display: false }, ticks: { font: { size: 11 } } },
+      y: { beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { precision: 0, font: { size: 11 } } }
+    },
+    animation: { duration: 700 },
+  }
+});
+{% endif %}
+</script>
+{% endblock %}

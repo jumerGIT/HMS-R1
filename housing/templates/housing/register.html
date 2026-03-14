@@ -1,0 +1,54 @@
+{% extends 'housing/base.html' %}
+{% block title %}Register – Barangay Housing Village{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-7 col-lg-6">
+    <div class="text-center mb-4">
+      <div style="font-size:3rem; color:#0038A8;"><i class="bi bi-person-plus-fill"></i></div>
+      <h3 class="fw-bold" style="color:#0038A8;">Create Applicant Account</h3>
+      <p class="text-muted small">Register to apply for Typhoon Haiyan relief housing</p>
+    </div>
+
+    <div class="card shadow-sm" style="border-radius:16px; border:none;">
+      <div class="card-body p-4">
+        <form method="post" novalidate>
+          {% csrf_token %}
+          <div class="row">
+            {% for field in form %}
+            <div class="{% if field.html_name in 'first_name,last_name' %}col-md-6{% else %}col-12{% endif %} mb-3">
+              <label class="form-label fw-medium small">{{ field.label }}</label>
+              <input type="{{ field.field.widget.input_type }}"
+                     name="{{ field.html_name }}"
+                     id="{{ field.id_for_label }}"
+                     class="form-control{% if field.errors %} is-invalid{% endif %}"
+                     {% if field.value %}value="{{ field.value }}"{% endif %}>
+              {% if field.help_text %}
+              <div class="form-text text-muted small">{{ field.help_text }}</div>
+              {% endif %}
+              {% for error in field.errors %}
+              <div class="invalid-feedback">{{ error }}</div>
+              {% endfor %}
+            </div>
+            {% endfor %}
+          </div>
+
+          <div class="alert alert-info small mt-2" style="border-radius:10px;">
+            <i class="bi bi-info-circle me-2"></i>
+            After registration, you will be able to submit your housing application for review.
+          </div>
+
+          <div class="d-grid mt-3">
+            <button type="submit" class="btn btn-success btn-lg" style="border-radius:10px;">
+              <i class="bi bi-check-circle me-2"></i>Create Account
+            </button>
+          </div>
+        </form>
+        <p class="text-center text-muted small mt-3 mb-0">
+          Already registered? <a href="{% url 'login' %}" class="text-decoration-none fw-semibold">Sign in here</a>
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

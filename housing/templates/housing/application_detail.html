@@ -1,0 +1,333 @@
+{% extends 'housing/base.html' %}
+{% block title %}Application – {{ application.full_name }}{% endblock %}
+
+{% block extra_head %}
+<style>
+/* ── Labels ── */
+.detail-lbl {
+  font-size:.68rem; text-transform:uppercase; letter-spacing:.09em;
+  color:#0038A8; font-weight:700; margin:1rem 0 .45rem;
+  display:flex; align-items:center; gap:.4rem;
+}
+.detail-lbl::after {
+  content:''; flex:1; height:1px; background:#e2e8f0;
+}
+
+/* ── Photo thumbnail (HH photo) ── */
+.photo-thumb {
+  width:80px; height:80px; object-fit:cover; flex-shrink:0;
+  border-radius:12px; border:2px solid #e2e8f0;
+  cursor:pointer; transition:transform .15s,box-shadow .15s;
+}
+.photo-thumb:hover { transform:scale(1.06); box-shadow:0 4px 16px rgba(0,0,0,.18); }
+
+/* ── National ID cards ── */
+.id-card {
+  border:1px solid #e2e8f0; border-radius:12px; overflow:hidden;
+  background:#f8fafc; transition:box-shadow .15s;
+}
+.id-card:hover { box-shadow:0 4px 18px rgba(0,56,168,.12); }
+.id-card__label {
+  font-size:.68rem; font-weight:700; text-transform:uppercase;
+  letter-spacing:.07em; color:#64748b; padding:.5rem .75rem;
+  background:#f1f5f9; border-bottom:1px solid #e2e8f0;
+  display:flex; align-items:center; gap:.35rem;
+}
+.id-card__img {
+  width:100%; aspect-ratio:16/10; object-fit:cover;
+  cursor:pointer; display:block; transition:opacity .15s;
+}
+.id-card__img:hover { opacity:.88; }
+.id-card__footer {
+  padding:.35rem .75rem; font-size:.72rem; color:#64748b;
+  display:flex; align-items:center; justify-content:space-between;
+}
+
+
+/* ── Lightbox ── */
+#lb-overlay {
+  display:none; position:fixed; inset:0; z-index:9999;
+  background:rgba(0,0,0,.82); align-items:center; justify-content:center;
+  padding:1rem;
+}
+#lb-overlay.active { display:flex; }
+#lb-img {
+  max-width:92vw; max-height:88vh; border-radius:12px;
+  box-shadow:0 8px 48px rgba(0,0,0,.5);
+  object-fit:contain;
+}
+#lb-close {
+  position:absolute; top:1rem; right:1.2rem;
+  background:rgba(255,255,255,.15); border:none; color:#fff;
+  width:2.4rem; height:2.4rem; border-radius:50%; font-size:1.1rem;
+  cursor:pointer; display:flex; align-items:center; justify-content:center;
+  transition:background .15s;
+}
+#lb-close:hover { background:rgba(255,255,255,.3); }
+#lb-caption {
+  position:absolute; bottom:1.2rem; left:50%; transform:translateX(-50%);
+  background:rgba(0,0,0,.55); color:#fff; font-size:.8rem;
+  padding:.3rem .9rem; border-radius:20px; white-space:nowrap;
+}
+
+/* ── Info table ── */
+.info-table th { width:38%; color:#64748b; font-weight:500; font-size:.82rem; }
+.info-table td { font-size:.85rem; }
+
+/* ── Member chips ── */
+.member-chip {
+  display:flex; align-items:center; gap:.6rem;
+  padding:.45rem .65rem; border-radius:10px;
+  background:#f8fafc; border:1px solid #e2e8f0; font-size:.82rem;
+}
+.member-chip__num {
+  width:1.5rem; height:1.5rem; border-radius:50%; background:#0038A8;
+  color:#fff; font-size:.65rem; font-weight:700;
+  display:flex; align-items:center; justify-content:center; flex-shrink:0;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="mb-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
+  <a href="{% url 'application_list' %}" class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-arrow-left me-1"></i>Back to Applications
+  </a>
+  <div class="d-flex align-items-center gap-2">
+    <span class="badge badge-{{ application.status }} fs-6 px-3 py-2">
+      {{ application.get_status_display }}
+    </span>
+    <small class="text-muted">Submitted {{ application.submission_date|date:"M d, Y g:i A" }}</small>
+  </div>
+</div>
+
+<div class="row g-3">
+
+  <!-- ══ Left column: application details ══ -->
+  <div class="col-lg-7">
+    <div class="card shadow-sm" style="border-radius:14px;border:none;">
+      <div class="card-header fw-semibold d-flex align-items-center gap-2"
+           style="background:#0038A8;color:#fff;border-radius:14px 14px 0 0;">
+        <i class="bi bi-person-lines-fill"></i>Application Details
+      </div>
+      <div class="card-body px-4 py-3">
+
+        <!-- Applicant -->
+        <h6 class="detail-lbl"><i class="bi bi-person"></i>Applicant</h6>
+        <table class="table table-borderless table-sm mb-0 info-table">
+          <tr>
+            <th>Name</th>
+            <td class="fw-semibold">
+              {% if application.applicant_fname or application.applicant_lname %}
+                {{ application.applicant_fname }} {{ application.applicant_lname }}
+              {% else %}
+                {{ application.full_name|default:"—" }}
+              {% endif %}
+            </td>
+          </tr>
+          <tr><th>Username</th><td>{{ application.applicant.username }}</td></tr>
+          <tr><th>Contact No.</th><td>{{ application.contact_no|default:"—" }}</td></tr>
+          <tr><th>Address</th><td>{{ application.current_address|default:"—" }}</td></tr>
+        </table>
+
+        <!-- Household head -->
+        <h6 class="detail-lbl mt-3"><i class="bi bi-house-heart"></i>Household Head</h6>
+        <div class="d-flex gap-3 align-items-start">
+          {% if application.hh_image %}
+          <img src="{{ application.hh_image.url }}" alt="Head photo"
+               class="photo-thumb"
+               data-lb-src="{{ application.hh_image.url }}"
+               data-lb-cap="Household Head Photo"
+               title="Click to enlarge">
+          {% endif %}
+          <table class="table table-borderless table-sm mb-0 info-table flex-grow-1">
+            <tr>
+              <th>Full Name</th>
+              <td class="fw-semibold">
+                {% if application.hh_lname %}{{ application.hh_lname }}, {% endif %}{{ application.hh_fname }} {{ application.hh_mname }}
+              </td>
+            </tr>
+            <tr><th>Birthdate</th><td>{{ application.hh_bdate|date:"M d, Y"|default:"—" }}</td></tr>
+            <tr><th>Civil Status</th><td>{{ application.get_civil_status_display|default:"—" }}</td></tr>
+            {% if application.spouse_name %}
+            <tr>
+              <th>Spouse</th>
+              <td>{{ application.spouse_name }}{% if application.spouse_bdate %} (b. {{ application.spouse_bdate|date:"M d, Y" }}){% endif %}</td>
+            </tr>
+            {% endif %}
+          </table>
+        </div>
+
+        <!-- National ID -->
+        {% if application.national_id_front or application.national_id_back %}
+        <h6 class="detail-lbl mt-3"><i class="bi bi-credit-card-2-front"></i>National ID</h6>
+        <div class="row g-2">
+          {% if application.national_id_front %}
+          <div class="col-sm-6">
+            <div class="id-card">
+              <div class="id-card__label"><i class="bi bi-front"></i>Front</div>
+              <img src="{{ application.national_id_front.url }}" alt="National ID Front"
+                   class="id-card__img"
+                   data-lb-src="{{ application.national_id_front.url }}"
+                   data-lb-cap="National ID – Front">
+              <div class="id-card__footer">
+                <span><i class="bi bi-zoom-in me-1"></i>Click to enlarge</span>
+                <a href="{{ application.national_id_front.url }}" target="_blank" class="text-primary">
+                  <i class="bi bi-box-arrow-up-right"></i>
+                </a>
+              </div>
+            </div>
+          </div>
+          {% endif %}
+          {% if application.national_id_back %}
+          <div class="col-sm-6">
+            <div class="id-card">
+              <div class="id-card__label"><i class="bi bi-back"></i>Back</div>
+              <img src="{{ application.national_id_back.url }}" alt="National ID Back"
+                   class="id-card__img"
+                   data-lb-src="{{ application.national_id_back.url }}"
+                   data-lb-cap="National ID – Back">
+              <div class="id-card__footer">
+                <span><i class="bi bi-zoom-in me-1"></i>Click to enlarge</span>
+                <a href="{{ application.national_id_back.url }}" target="_blank" class="text-primary">
+                  <i class="bi bi-box-arrow-up-right"></i>
+                </a>
+              </div>
+            </div>
+          </div>
+          {% endif %}
+        </div>
+        {% endif %}
+
+        <!-- Household details -->
+        <h6 class="detail-lbl mt-3"><i class="bi bi-people"></i>Household Details</h6>
+        <table class="table table-borderless table-sm mb-0 info-table">
+          <tr><th>Type</th><td>{{ application.get_household_type_display|default:"—" }}</td></tr>
+          <tr><th>Tenurial Status</th><td>{{ application.get_tenurial_status_display|default:"—" }}</td></tr>
+          <tr><th>Household Size</th><td>{{ application.family_size }} person(s)</td></tr>
+          <tr><th>Extent of Damage</th><td>{{ application.get_extent_damage_display|default:"—" }}</td></tr>
+          <tr><th>Housing Option</th><td>{{ application.get_housing_option_display|default:"—" }}</td></tr>
+          <tr><th>Monthly Income</th><td>₱ {{ application.monthly_income|floatformat:"2g" }}</td></tr>
+        </table>
+
+        <!-- Household members -->
+        {% with members=application.members.all %}
+        {% if members %}
+        <h6 class="detail-lbl mt-3"><i class="bi bi-person-lines-fill"></i>Household Members ({{ members.count }})</h6>
+        <div class="d-flex flex-column gap-2">
+          {% for m in members %}
+          <div class="member-chip">
+            <div class="member-chip__num">{{ forloop.counter }}</div>
+            <div class="flex-grow-1">
+              <div class="fw-semibold">{{ m.lname }}, {{ m.fname }} {% if m.mname %}{{ m.mname }}{% endif %}</div>
+              <div class="text-muted" style="font-size:.72rem;">{{ m.get_relationship_display }}{% if m.bdate %} · b. {{ m.bdate|date:"M d, Y" }}{% endif %}</div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+        {% endwith %}
+
+        <!-- Review info -->
+        {% if application.reviewed_by %}
+        <h6 class="detail-lbl mt-3"><i class="bi bi-clipboard-check"></i>Review</h6>
+        <table class="table table-borderless table-sm mb-0 info-table">
+          <tr><th>Reviewed By</th><td>{{ application.reviewed_by.get_full_name|default:application.reviewed_by.username }}</td></tr>
+          <tr><th>Review Date</th><td>{{ application.review_date|date:"M d, Y g:i A" }}</td></tr>
+        </table>
+        {% endif %}
+
+        {% if application.notes %}
+        <div class="alert alert-secondary small mt-3 mb-0">
+          <strong>Notes:</strong> {{ application.notes }}
+        </div>
+        {% endif %}
+
+        {% if application.impact_description %}
+        <div class="mt-3 p-3 bg-light rounded small text-muted mb-0">
+          <strong>Legacy impact data:</strong> {{ application.impact_description }}
+        </div>
+        {% endif %}
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ Right column: review form ══ -->
+  <div class="col-lg-5">
+    <div class="card shadow-sm" style="border-radius:14px;border:none;">
+      <div class="card-header fw-semibold d-flex align-items-center gap-2"
+           style="background:#0038A8;color:#fff;border-radius:14px 14px 0 0;">
+        <i class="bi bi-clipboard-check"></i>Review Decision
+      </div>
+      <div class="card-body">
+        <form method="post">
+          {% csrf_token %}
+          {% for field in form %}
+          <div class="mb-3">
+            <label class="form-label fw-medium small">{{ field.label }}</label>
+            {% if field.html_name == 'status' %}
+            <select name="{{ field.html_name }}" class="form-select">
+              {% for val, label in field.field.choices %}
+              <option value="{{ val }}" {% if field.value == val %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+            {% else %}
+            <textarea name="{{ field.html_name }}"
+                      class="form-control{% if field.errors %} is-invalid{% endif %}"
+                      rows="4"
+                      placeholder="Optional reviewer notes...">{{ field.value|default:'' }}</textarea>
+            {% endif %}
+            {% for error in field.errors %}
+            <div class="invalid-feedback">{{ error }}</div>
+            {% endfor %}
+          </div>
+          {% endfor %}
+          <div class="d-grid">
+            <button type="submit" class="btn btn-primary" style="border-radius:10px;">
+              <i class="bi bi-save me-2"></i>Save Decision
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── Lightbox ── -->
+<div id="lb-overlay" role="dialog" aria-modal="true">
+  <button id="lb-close" aria-label="Close"><i class="bi bi-x-lg"></i></button>
+  <img id="lb-img" src="" alt="">
+  <div id="lb-caption"></div>
+</div>
+
+<script>
+(function () {
+  const overlay = document.getElementById('lb-overlay');
+  const lbImg   = document.getElementById('lb-img');
+  const lbCap   = document.getElementById('lb-caption');
+
+  function openLightbox(src, caption) {
+    lbImg.src = src;
+    lbCap.textContent = caption || '';
+    overlay.classList.add('active');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeLightbox() {
+    overlay.classList.remove('active');
+    document.body.style.overflow = '';
+    lbImg.src = '';
+  }
+
+  document.querySelectorAll('[data-lb-src]').forEach(el => {
+    el.addEventListener('click', () => openLightbox(el.dataset.lbSrc, el.dataset.lbCap));
+  });
+
+  document.getElementById('lb-close').addEventListener('click', closeLightbox);
+  overlay.addEventListener('click', e => { if (e.target === overlay) closeLightbox(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
+})();
+</script>
+{% endblock %}

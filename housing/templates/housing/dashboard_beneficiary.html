@@ -1,0 +1,115 @@
+{% extends 'housing/base.html' %}
+{% block title %}Beneficiary Dashboard{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h2><i class="bi bi-file-earmark-person me-2"></i>Beneficiary Incharge Dashboard</h2>
+  <p>Review and manage housing applications</p>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3">
+    <div class="card stat-card h-100">
+      <div class="card-body d-flex align-items-center gap-3">
+        <div class="icon-wrap" style="background:#e8f0fe;">
+          <i class="bi bi-files" style="color:#0038A8;"></i>
+        </div>
+        <div>
+          <div class="text-muted small">Total</div>
+          <div class="fs-3 fw-bold">{{ total_applications }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card stat-card h-100">
+      <div class="card-body d-flex align-items-center gap-3">
+        <div class="icon-wrap" style="background:#fff3cd;">
+          <i class="bi bi-hourglass-split" style="color:#f59e0b;"></i>
+        </div>
+        <div>
+          <div class="text-muted small">Pending</div>
+          <div class="fs-3 fw-bold text-warning">{{ pending_applications }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card stat-card h-100">
+      <div class="card-body d-flex align-items-center gap-3">
+        <div class="icon-wrap" style="background:#d1fae5;">
+          <i class="bi bi-check-circle" style="color:#059669;"></i>
+        </div>
+        <div>
+          <div class="text-muted small">Approved</div>
+          <div class="fs-3 fw-bold text-success">{{ approved_applications }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card stat-card h-100">
+      <div class="card-body d-flex align-items-center gap-3">
+        <div class="icon-wrap" style="background:#f3f4f6;">
+          <i class="bi bi-x-circle" style="color:#6b7280;"></i>
+        </div>
+        <div>
+          <div class="text-muted small">Rejected</div>
+          <div class="fs-3 fw-bold text-secondary">{{ rejected_applications }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-md-5">
+    <div class="card shadow-sm" style="border-radius:12px; border:none;">
+      <div class="card-header fw-semibold" style="background:#0038A8; color:#fff; border-radius:12px 12px 0 0;">
+        <i class="bi bi-lightning me-2"></i>Quick Actions
+      </div>
+      <div class="card-body">
+        <div class="d-grid gap-2">
+          <a href="{% url 'application_list' %}?status=pending" class="btn btn-warning">
+            <i class="bi bi-clock me-2"></i>Review Pending ({{ pending_applications }})
+          </a>
+          <a href="{% url 'application_list' %}" class="btn btn-outline-primary">
+            <i class="bi bi-list-ul me-2"></i>All Applications
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-7">
+    <div class="card shadow-sm" style="border-radius:12px; border:none;">
+      <div class="card-header fw-semibold" style="background:#0038A8; color:#fff; border-radius:12px 12px 0 0;">
+        <i class="bi bi-clock-history me-2"></i>Recent Applications
+      </div>
+      <div class="card-body p-0">
+        <table class="table table-hms mb-0">
+          <thead>
+            <tr><th>Applicant</th><th>Date</th><th>Status</th></tr>
+          </thead>
+          <tbody>
+            {% for app in recent_applications %}
+            <tr>
+              <td>
+                <a href="{% url 'application_detail' app.pk %}" class="text-decoration-none fw-semibold">
+                  {{ app.full_name }}
+                </a>
+              </td>
+              <td class="text-muted small">{{ app.submission_date|date:"M d, Y" }}</td>
+              <td>
+                <span class="badge badge-{{ app.status }}">{{ app.get_status_display }}</span>
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="3" class="text-muted">No applications yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,332 @@
+{% comment %}
+  Readonly summary of a submitted application.
+  Context var: app  (Application instance)
+{% endcomment %}
+
+<style>
+.ro-section {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 2px 12px rgba(0,0,0,.07);
+  margin-bottom: 1.25rem;
+  overflow: hidden;
+}
+.ro-section__header {
+  display: flex; align-items: center; gap: 1rem;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid #f0f0f0;
+  background: #fafbfc;
+}
+.ro-section__num {
+  width: 28px; height: 28px; border-radius: 50%;
+  background: #0038A8; color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-size: .78rem; font-weight: 700; flex-shrink: 0;
+}
+.ro-section__title { font-size: .9rem; font-weight: 700; color: #1e293b; margin: 0; }
+.ro-section__sub   { font-size: .78rem; color: #94a3b8; margin: 0; }
+.ro-section__body  { padding: 1.25rem 1.5rem; }
+
+.ro-field { margin-bottom: .9rem; }
+.ro-label {
+  font-size: .72rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .05em; color: #94a3b8; margin-bottom: .2rem;
+}
+.ro-value {
+  font-size: .9rem; color: #1e293b; font-weight: 500;
+  padding: .45rem .75rem;
+  background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;
+  min-height: 38px; display: flex; align-items: center;
+}
+.ro-value.empty { color: #cbd5e1; font-style: italic; }
+.ro-value-text {
+  font-size: .88rem; color: #1e293b;
+  padding: .5rem .75rem;
+  background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;
+  white-space: pre-line;
+}
+
+/* Member table */
+.member-row { font-size: .83rem; }
+.member-row td { padding: .55rem .75rem; vertical-align: middle; border-bottom: 1px solid #f1f5f9; }
+.member-row:last-child td { border-bottom: none; }
+</style>
+
+<!-- ── Section 1: Applicant Info ── -->
+<div class="ro-section">
+  <div class="ro-section__header">
+    <span class="ro-section__num">1</span>
+    <div>
+      <h6 class="ro-section__title">Applicant Information</h6>
+      <p class="ro-section__sub">Person who submitted this application</p>
+    </div>
+  </div>
+  <div class="ro-section__body">
+    <div class="row g-3">
+      <div class="col-sm-6">
+        <div class="ro-field">
+          <div class="ro-label">First Name</div>
+          <div class="ro-value {% if not app.applicant_fname %}empty{% endif %}">
+            {{ app.applicant_fname|default:"—" }}
+          </div>
+        </div>
+      </div>
+      <div class="col-sm-6">
+        <div class="ro-field">
+          <div class="ro-label">Last Name</div>
+          <div class="ro-value {% if not app.applicant_lname %}empty{% endif %}">
+            {{ app.applicant_lname|default:"—" }}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Section 2: Household Head ── -->
+<div class="ro-section">
+  <div class="ro-section__header">
+    <span class="ro-section__num">2</span>
+    <div>
+      <h6 class="ro-section__title">Household Head Information</h6>
+      <p class="ro-section__sub">Details of the head of the household</p>
+    </div>
+  </div>
+  <div class="ro-section__body">
+    <div class="row g-3">
+      <div class="col-sm-4">
+        <div class="ro-field">
+          <div class="ro-label">First Name</div>
+          <div class="ro-value {% if not app.hh_fname %}empty{% endif %}">{{ app.hh_fname|default:"—" }}</div>
+        </div>
+      </div>
+      <div class="col-sm-4">
+        <div class="ro-field">
+          <div class="ro-label">Middle Name</div>
+          <div class="ro-value {% if not app.hh_mname %}empty{% endif %}">{{ app.hh_mname|default:"—" }}</div>
+        </div>
+      </div>
+      <div class="col-sm-4">
+        <div class="ro-field">
+          <div class="ro-label">Last Name</div>
+          <div class="ro-value {% if not app.hh_lname %}empty{% endif %}">{{ app.hh_lname|default:"—" }}</div>
+        </div>
+      </div>
+      <div class="col-sm-6">
+        <div class="ro-field">
+          <div class="ro-label">Birthdate</div>
+          <div class="ro-value {% if not app.hh_bdate %}empty{% endif %}">
+            {% if app.hh_bdate %}{{ app.hh_bdate|date:"F d, Y" }}{% else %}—{% endif %}
+          </div>
+        </div>
+      </div>
+      {% if app.hh_image %}
+      <div class="col-12">
+        <div class="ro-label mb-1">Photo with National ID</div>
+        <img src="{{ app.hh_image.url }}"
+             style="max-width:220px; border-radius:10px; border:2px solid #e2e8f0;">
+      </div>
+      {% endif %}
+      {% if app.national_id_front or app.national_id_back %}
+      <div class="col-12">
+        <div class="ro-label mb-2">National ID</div>
+        <div class="d-flex gap-3 flex-wrap">
+          {% if app.national_id_front %}
+          <div>
+            <div class="text-muted small mb-1">Front</div>
+            <img src="{{ app.national_id_front.url }}"
+                 style="max-width:200px; border-radius:8px; border:2px solid #e2e8f0;">
+          </div>
+          {% endif %}
+          {% if app.national_id_back %}
+          <div>
+            <div class="text-muted small mb-1">Back</div>
+            <img src="{{ app.national_id_back.url }}"
+                 style="max-width:200px; border-radius:8px; border:2px solid #e2e8f0;">
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- ── Section 3: Civil Status ── -->
+<div class="ro-section">
+  <div class="ro-section__header">
+    <span class="ro-section__num">3</span>
+    <div>
+      <h6 class="ro-section__title">Civil Status & Spouse</h6>
+      <p class="ro-section__sub">Marital information</p>
+    </div>
+  </div>
+  <div class="ro-section__body">
+    <div class="row g-3">
+      <div class="col-sm-6">
+        <div class="ro-field">
+          <div class="ro-label">Civil Status</div>
+          <div class="ro-value {% if not app.civil_status %}empty{% endif %}">
+            {{ app.get_civil_status_display|default:"—" }}
+          </div>
+        </div>
+      </div>
+      {% if app.civil_status in 'married live_in' or app.spouse_name %}
+      <div class="col-sm-6">
+        <div class="ro-field">
+          <div class="ro-label">Spouse Name</div>
+          <div class="ro-value {% if not app.spouse_name %}empty{% endif %}">{{ app.spouse_name|default:"—" }}</div>
+        </div>
+      </div>
+      <div class="col-sm-6">
+        <div class="ro-field">
+          <div class="ro-label">Spouse Birthdate</div>
+          <div class="ro-value {% if not app.spouse_bdate %}empty{% endif %}">
+            {% if app.spouse_bdate %}{{ app.spouse_bdate|date:"F d, Y" }}{% else %}—{% endif %}
+          </div>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- ── Section 4: Household Details ── -->
+<div class="ro-section">
+  <div class="ro-section__header">
+    <span class="ro-section__num">4</span>
+    <div>
+      <h6 class="ro-section__title">Household & Housing Details</h6>
+      <p class="ro-section__sub">Pre-disaster housing situation</p>
+    </div>
+  </div>
+  <div class="ro-section__body">
+    <div class="row g-3">
+      <div class="col-sm-6">
+        <div class="ro-field">
+          <div class="ro-label">Household Type</div>
+          <div class="ro-value {% if not app.household_type %}empty{% endif %}">
+            {{ app.get_household_type_display|default:"—" }}
+          </div>
+        </div>
+      </div>
+      <div class="col-sm-6">
+        <div class="ro-field">
+          <div class="ro-label">Tenurial Status</div>
+          <div class="ro-value {% if not app.tenurial_status %}empty{% endif %}">
+            {{ app.get_tenurial_status_display|default:"—" }}
+          </div>
+        </div>
+      </div>
+      <div class="col-sm-4">
+        <div class="ro-field">
+          <div class="ro-label">Family Size</div>
+          <div class="ro-value">{{ app.family_size }}</div>
+        </div>
+      </div>
+      <div class="col-sm-4">
+        <div class="ro-field">
+          <div class="ro-label">Extent of Damage</div>
+          <div class="ro-value {% if not app.extent_damage %}empty{% endif %}">
+            {{ app.get_extent_damage_display|default:"—" }}
+          </div>
+        </div>
+      </div>
+      <div class="col-sm-4">
+        <div class="ro-field">
+          <div class="ro-label">Housing Option Needed</div>
+          <div class="ro-value {% if not app.housing_option %}empty{% endif %}">
+            {{ app.get_housing_option_display|default:"—" }}
+          </div>
+        </div>
+      </div>
+      <div class="col-sm-6">
+        <div class="ro-field">
+          <div class="ro-label">Monthly Income (PHP)</div>
+          <div class="ro-value">{{ app.monthly_income|default:"0" }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Section 5: Address & Contact ── -->
+<div class="ro-section">
+  <div class="ro-section__header">
+    <span class="ro-section__num">5</span>
+    <div>
+      <h6 class="ro-section__title">Address & Contact</h6>
+      <p class="ro-section__sub">Current address and contact details</p>
+    </div>
+  </div>
+  <div class="ro-section__body">
+    <div class="row g-3">
+      <div class="col-12">
+        <div class="ro-field">
+          <div class="ro-label">Current Address / Place of Origin</div>
+          <div class="ro-value-text {% if not app.current_address %}empty{% endif %}">
+            {{ app.current_address|default:"—" }}
+          </div>
+        </div>
+      </div>
+      <div class="col-sm-6">
+        <div class="ro-field">
+          <div class="ro-label">Contact Number</div>
+          <div class="ro-value {% if not app.contact_no %}empty{% endif %}">{{ app.contact_no|default:"—" }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Section 6: Household Members ── -->
+<div class="ro-section">
+  <div class="ro-section__header">
+    <span class="ro-section__num">6</span>
+    <div>
+      <h6 class="ro-section__title">Household Members</h6>
+      <p class="ro-section__sub">Family members listed in this application</p>
+    </div>
+  </div>
+  <div class="ro-section__body p-0">
+    {% with members=app.members.all %}
+    {% if members %}
+    <div class="table-responsive">
+      <table class="table mb-0" style="font-size:.83rem;">
+        <thead style="background:#f8fafc;">
+          <tr>
+            <th class="ps-4" style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;border:none;padding:.7rem 1rem;">#</th>
+            <th style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;border:none;padding:.7rem 1rem;">Name</th>
+            <th style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;border:none;padding:.7rem 1rem;">Relationship</th>
+            <th style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;border:none;padding:.7rem 1rem;">Birthdate</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for m in members %}
+          <tr class="member-row">
+            <td class="ps-4 text-muted">{{ forloop.counter }}</td>
+            <td class="fw-medium">{{ m.lname }}, {{ m.fname }} {% if m.mname %}{{ m.mname }}{% endif %}</td>
+            <td>{{ m.get_relationship_display }}</td>
+            <td class="text-muted">{% if m.bdate %}{{ m.bdate|date:"M d, Y" }}{% else %}—{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="px-4 py-3 text-muted small"><i class="bi bi-people me-1"></i>No household members listed.</div>
+    {% endif %}
+    {% endwith %}
+  </div>
+</div>
+
+<!-- ── Submission metadata ── -->
+<div class="d-flex flex-wrap gap-3 mt-1 mb-3 px-1" style="font-size:.8rem; color:#94a3b8;">
+  <span><i class="bi bi-calendar3 me-1"></i>Submitted {{ app.submission_date|date:"F d, Y" }}</span>
+  {% if app.reviewed_by %}
+  <span><i class="bi bi-person-check me-1"></i>Reviewed by {{ app.reviewed_by.get_full_name|default:app.reviewed_by.username }}</span>
+  {% endif %}
+  {% if app.review_date %}
+  <span><i class="bi bi-clock-history me-1"></i>{{ app.review_date|date:"F d, Y" }}</span>
+  {% endif %}
+</div>

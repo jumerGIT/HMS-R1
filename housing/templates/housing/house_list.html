@@ -1,0 +1,425 @@
+{% extends 'housing/base.html' %}
+{% block title %}House Inventory – ECIMMS{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css">
+<link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css">
+<style>
+/* ── Status pills ── */
+.house-status {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: .73rem; font-weight: 700; padding: .24rem .7rem;
+  border-radius: 20px; text-transform: uppercase; letter-spacing: .05em;
+}
+.house-status-available { background:#f0fdf4; color:#15803d; border:1.5px solid #bbf7d0; }
+.house-status-occupied  { background:#fff1f2; color:#be123c; border:1.5px solid #fecdd3; }
+
+/* ── Site tabs ── */
+.site-tabs {
+  display: flex; gap: 0; border-bottom: 2px solid #e2e8f0; margin-bottom: 0;
+  padding: 0 1.25rem;
+}
+.site-tab {
+  display: flex; align-items: center; gap: .55rem;
+  padding: .9rem 1.25rem; font-size: .85rem; font-weight: 600;
+  color: #64748b; cursor: pointer; border: none; background: none;
+  border-bottom: 2px solid transparent; margin-bottom: -2px;
+  transition: color .15s, border-color .15s;
+}
+.site-tab:hover { color: #0038A8; }
+.site-tab.active { color: #0038A8; border-bottom-color: #0038A8; }
+.site-tab .tab-count {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 22px; height: 20px; padding: 0 6px;
+  border-radius: 10px; font-size: .68rem; font-weight: 700;
+}
+.site-tab.active .tab-count { background: #dbeafe; color: #1d4ed8; }
+.site-tab:not(.active) .tab-count { background: #f1f5f9; color: #94a3b8; }
+
+/* ── Clickable row ── */
+.house-row { cursor: pointer; transition: background .1s; }
+.house-row:hover td { background: #f0f5ff !important; }
+
+.house-no {
+  font-family: 'Cascadia Code', 'Consolas', monospace;
+  font-weight: 700; font-size: .88rem; color: #1e293b;
+}
+
+/* ── Offcanvas detail panel ── */
+#houseDetailPanel { width: 420px; }
+#houseDetailPanel .offcanvas-header {
+  background: #001f6b; color: #fff;
+  border-bottom: none; padding: 1.1rem 1.25rem;
+}
+#houseDetailPanel .offcanvas-header .btn-close { filter: invert(1); opacity: .7; }
+#houseDetailPanel .offcanvas-body { padding: 0; overflow-y: auto; }
+
+.detail-hero {
+  padding: 1.25rem 1.25rem 1rem;
+  border-bottom: 1px solid #f1f5f9;
+  background: #f8fafc;
+}
+.detail-hero .house-label {
+  font-size: .68rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .07em; color: #94a3b8; margin-bottom: .25rem;
+}
+.detail-hero .house-address {
+  font-size: 1rem; font-weight: 700; color: #1e293b; line-height: 1.4;
+}
+.detail-hero .house-meta { margin-top: .5rem; display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
+.site-chip {
+  display: inline-flex; align-items: center;
+  font-size: .7rem; font-weight: 700; padding: .2rem .6rem;
+  border-radius: 6px; letter-spacing: .04em;
+}
+.site-chip-1 { background:#dbeafe; color:#1d4ed8; }
+.site-chip-2 { background:#fef9c3; color:#854d0e; }
+
+.detail-section { padding: 1rem 1.25rem; border-bottom: 1px solid #f1f5f9; }
+.detail-section-title {
+  font-size: .7rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .08em; color: #94a3b8; margin-bottom: .75rem;
+  display: flex; align-items: center; gap: .4rem;
+}
+.detail-field { margin-bottom: .65rem; }
+.detail-field-label { font-size: .7rem; color: #94a3b8; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; margin-bottom: .15rem; }
+.detail-field-value { font-size: .87rem; color: #1e293b; font-weight: 500; }
+
+.member-item {
+  display: flex; align-items: center; gap: .75rem;
+  padding: .55rem 0; border-bottom: 1px solid #f8fafc;
+}
+.member-item:last-child { border-bottom: none; }
+.member-avatar {
+  width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0;
+  background: linear-gradient(135deg, #e0f2fe, #bae6fd);
+  display: flex; align-items: center; justify-content: center;
+  font-size: .7rem; font-weight: 700; color: #0369a1;
+}
+.member-name { font-size: .83rem; font-weight: 600; color: #1e293b; }
+.member-rel  { font-size: .72rem; color: #94a3b8; }
+
+.empty-state {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 3rem 1.5rem; text-align: center;
+}
+.empty-state-icon { font-size: 2.5rem; color: #cbd5e1; margin-bottom: .75rem; }
+.empty-state-text { font-size: .88rem; color: #94a3b8; }
+
+/* Loading skeleton in offcanvas */
+.detail-skeleton { padding: 1.25rem; }
+.sk-line { height: 14px; border-radius: 6px; margin-bottom: .75rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+  <div>
+    <h2><i class="bi bi-houses me-2"></i>House Inventory</h2>
+    <p>All donated houses in Barangay Housing Village</p>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    <a href="{% url 'add_house' %}" class="btn btn-primary d-flex align-items-center gap-2"
+       style="border-radius:9px; font-size:.875rem; font-weight:600;">
+      <i class="bi bi-plus-circle"></i>Add House
+    </a>
+    <a href="{% url 'import_houses_csv' %}" class="btn btn-outline-primary d-flex align-items-center gap-2"
+       style="border-radius:9px; font-size:.875rem; font-weight:600;">
+      <i class="bi bi-file-earmark-arrow-up"></i>Import CSV
+    </a>
+    <a href="{% url 'map' %}" class="btn btn-light d-flex align-items-center gap-2"
+       style="border-radius:9px; font-size:.875rem; font-weight:600;">
+      <i class="bi bi-map"></i>Village Map
+    </a>
+  </div>
+</div>
+
+<div class="card tbl-card">
+
+  <!-- ── Site Tabs ── -->
+  <div class="site-tabs">
+    <button class="site-tab active" id="tab-site1" onclick="switchTab(1)">
+      <i class="bi bi-geo-alt" style="font-size:.9rem;"></i>
+      Site 1 – Brgy. Old Poblacion
+      <span class="tab-count">{{ site1_total }}</span>
+    </button>
+    <button class="site-tab" id="tab-site2" onclick="switchTab(2)">
+      <i class="bi bi-geo-alt" style="font-size:.9rem;"></i>
+      Site 2 – Brgy. Washington
+      <span class="tab-count">{{ site2_total }}</span>
+    </button>
+  </div>
+
+  <!-- ── Site 1 Table ── -->
+  <div id="pane-site1">
+    <table id="houseTable1" class="table table-hms mb-0" style="width:100%">
+      <thead>
+        <tr>
+          <th style="width:48px;">#</th>
+          <th>House Address</th>
+          <th style="width:130px;">Status</th>
+          <th>Resident</th>
+          <th style="width:140px;">Allocated On</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for house in site1_houses %}
+        <tr class="house-row" data-house-id="{{ house.id }}">
+          <td class="text-muted" style="font-size:.78rem;">{{ forloop.counter }}</td>
+          <td><span class="house-no">{{ house.house_number }}</span></td>
+          <td>
+            <span class="house-status house-status-{{ house.status }}">
+              <i class="bi bi-circle-fill" style="font-size:.4rem;"></i>
+              {{ house.get_status_display }}
+            </span>
+          </td>
+          <td>
+            {% if house.allocated_to %}
+            <span class="fw-semibold" style="font-size:.875rem;">{{ house.allocated_to.get_full_name|default:house.allocated_to.username }}</span>
+            {% else %}
+            <span class="text-muted" style="font-size:.82rem;">—</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if house.allocation_date %}
+            <span style="font-size:.82rem; color:#64748b;">{{ house.allocation_date|date:"M d, Y" }}</span>
+            {% else %}<span class="text-muted">—</span>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ── Site 2 Table ── -->
+  <div id="pane-site2" style="display:none;">
+    <table id="houseTable2" class="table table-hms mb-0" style="width:100%">
+      <thead>
+        <tr>
+          <th style="width:48px;">#</th>
+          <th>House Address</th>
+          <th style="width:130px;">Status</th>
+          <th>Resident</th>
+          <th style="width:140px;">Allocated On</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for house in site2_houses %}
+        <tr class="house-row" data-house-id="{{ house.id }}">
+          <td class="text-muted" style="font-size:.78rem;">{{ forloop.counter }}</td>
+          <td><span class="house-no">{{ house.house_number }}</span></td>
+          <td>
+            <span class="house-status house-status-{{ house.status }}">
+              <i class="bi bi-circle-fill" style="font-size:.4rem;"></i>
+              {{ house.get_status_display }}
+            </span>
+          </td>
+          <td>
+            {% if house.allocated_to %}
+            <span class="fw-semibold" style="font-size:.875rem;">{{ house.allocated_to.get_full_name|default:house.allocated_to.username }}</span>
+            {% else %}
+            <span class="text-muted" style="font-size:.82rem;">—</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if house.allocation_date %}
+            <span style="font-size:.82rem; color:#64748b;">{{ house.allocation_date|date:"M d, Y" }}</span>
+            {% else %}<span class="text-muted">—</span>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+</div>
+
+<!-- ── House Detail Offcanvas ── -->
+<div class="offcanvas offcanvas-end" tabindex="-1" id="houseDetailPanel" aria-labelledby="houseDetailLabel">
+  <div class="offcanvas-header">
+    <div>
+      <h6 class="offcanvas-title mb-0 fw-bold" id="houseDetailLabel">
+        <i class="bi bi-house-door me-2"></i>House Details
+      </h6>
+      <small style="color:rgba(255,255,255,.5); font-size:.7rem;">Click a row to view details</small>
+    </div>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
+  </div>
+  <div class="offcanvas-body" id="houseDetailBody">
+    <div class="empty-state">
+      <div class="empty-state-icon"><i class="bi bi-house-door"></i></div>
+      <div class="empty-state-text">Select a house from the table<br>to view its details.</div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
+<script>
+// ── DataTables ──────────────────────────────────────────────────────────
+const dtOptions = {
+  dom: "<'dt-top'lf><'dt-buttons mb-2'B><'table-responsive'tr><'dt-bottom'ip>",
+  pageLength: 25,
+  lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, 'All']],
+  order: [[1, 'asc']],
+  columnDefs: [{ orderable: false, targets: [0] }],
+  buttons: [
+    { extend: 'csv', text: '<i class="bi bi-file-earmark-spreadsheet me-1"></i>CSV', className: 'export-btn export-csv', exportOptions: { columns: ':not(:last-child)' } },
+    { extend: 'pdf', text: '<i class="bi bi-file-earmark-pdf me-1"></i>PDF', className: 'export-btn export-pdf', exportOptions: { columns: ':not(:last-child)' }, orientation: 'landscape', pageSize: 'A4' },
+  ],
+  language: {
+    search: '', searchPlaceholder: 'Search houses…',
+    lengthMenu: 'Show _MENU_',
+    info: 'Showing _START_–_END_ of _TOTAL_ houses',
+    paginate: { previous: '‹', next: '›' },
+    emptyTable: 'No houses found.',
+  },
+};
+
+let dt1 = null, dt2 = null;
+
+$(document).ready(function () {
+  dt1 = $('#houseTable1').DataTable(dtOptions);
+  // dt2 is initialized lazily when tab 2 is first opened
+});
+
+// ── Tab switching ───────────────────────────────────────────────────────
+function switchTab(site) {
+  document.getElementById('pane-site1').style.display = site === 1 ? '' : 'none';
+  document.getElementById('pane-site2').style.display = site === 2 ? '' : 'none';
+  document.getElementById('tab-site1').classList.toggle('active', site === 1);
+  document.getElementById('tab-site2').classList.toggle('active', site === 2);
+
+  if (site === 2 && !dt2) {
+    dt2 = $('#houseTable2').DataTable(dtOptions);
+    bindRowClicks('#houseTable2');
+  }
+}
+
+// ── Row click → offcanvas ───────────────────────────────────────────────
+function bindRowClicks(selector) {
+  $(selector + ' tbody').on('click', 'tr.house-row', function () {
+    openHouseDetail($(this).data('house-id'));
+  });
+}
+bindRowClicks('#houseTable1');
+
+// Open offcanvas and load content
+const detailPanel = new bootstrap.Offcanvas(document.getElementById('houseDetailPanel'));
+
+function openHouseDetail(houseId) {
+  // Show skeleton while loading
+  document.getElementById('houseDetailBody').innerHTML = `
+    <div class="detail-skeleton">
+      <div class="sk-shimmer sk-line" style="width:60%;"></div>
+      <div class="sk-shimmer sk-line" style="width:40%; margin-bottom:1.5rem;"></div>
+      <div class="sk-shimmer sk-line" style="width:80%;"></div>
+      <div class="sk-shimmer sk-line" style="width:55%;"></div>
+      <div class="sk-shimmer sk-line" style="width:70%;"></div>
+    </div>`;
+  detailPanel.show();
+
+  fetch(`/houses/${houseId}/detail/`)
+    .then(r => r.json())
+    .then(d => renderDetail(d))
+    .catch(() => {
+      document.getElementById('houseDetailBody').innerHTML =
+        `<div class="empty-state"><div class="empty-state-icon"><i class="bi bi-exclamation-circle"></i></div>
+         <div class="empty-state-text text-danger">Failed to load house details.</div></div>`;
+    });
+}
+
+function renderDetail(d) {
+  const statusClass = d.status === 'available' ? 'house-status-available' : 'house-status-occupied';
+  const statusDot   = `<i class="bi bi-circle-fill" style="font-size:.4rem;"></i>`;
+
+  let residentHtml = '';
+  if (d.resident) {
+    // Build member rows
+    let memberRows = '';
+    if (d.members && d.members.length) {
+      d.members.forEach((m, i) => {
+        const initials = ((m.fname||'')[0] + (m.lname||'')[0]).toUpperCase();
+        const fullName = [m.lname, m.fname, m.mname].filter(Boolean).join(', ');
+        const rel      = m.relationship.replace(/_/g,' ');
+        const bdate    = m.bdate || '—';
+        memberRows += `
+          <div class="member-item">
+            <div class="member-avatar">${initials}</div>
+            <div>
+              <div class="member-name">${fullName}</div>
+              <div class="member-rel">${rel} · ${bdate}</div>
+            </div>
+          </div>`;
+      });
+    } else {
+      memberRows = `<div class="text-muted small py-2"><i class="bi bi-people me-1"></i>No household members listed.</div>`;
+    }
+
+    residentHtml = `
+      <div class="detail-section">
+        <div class="detail-section-title"><i class="bi bi-person-fill text-primary"></i>Resident (Household Head)</div>
+        <div class="detail-field">
+          <div class="detail-field-label">Full Name</div>
+          <div class="detail-field-value fw-bold">${d.resident.name}</div>
+        </div>
+        ${d.resident.contact ? `
+        <div class="detail-field">
+          <div class="detail-field-label">Contact</div>
+          <div class="detail-field-value">${d.resident.contact}</div>
+        </div>` : ''}
+        ${d.resident.civil_status ? `
+        <div class="detail-field">
+          <div class="detail-field-label">Civil Status</div>
+          <div class="detail-field-value">${d.resident.civil_status}</div>
+        </div>` : ''}
+        ${d.resident.family_size ? `
+        <div class="detail-field">
+          <div class="detail-field-label">Family Size</div>
+          <div class="detail-field-value">${d.resident.family_size} person(s)</div>
+        </div>` : ''}
+      </div>
+      <div class="detail-section">
+        <div class="detail-section-title"><i class="bi bi-people-fill text-primary"></i>Household Members (${d.members.length})</div>
+        ${memberRows}
+      </div>`;
+  } else {
+    residentHtml = `
+      <div class="detail-section">
+        <div class="empty-state" style="padding:2rem 1rem;">
+          <div class="empty-state-icon"><i class="bi bi-person-dash"></i></div>
+          <div class="empty-state-text">No residents yet.<br>This house is available for allocation.</div>
+        </div>
+      </div>`;
+  }
+
+  document.getElementById('houseDetailBody').innerHTML = `
+    <div class="detail-hero">
+      <div class="house-label">House Address</div>
+      <div class="house-address">${d.house_number}</div>
+      <div class="house-meta">
+        <span class="site-chip site-chip-${d.site}">Site ${d.site}</span>
+        <span class="house-status ${statusClass}">${statusDot} ${d.status_display}</span>
+        ${d.allocation_date ? `<span style="font-size:.72rem;color:#94a3b8;"><i class="bi bi-calendar3 me-1"></i>${d.allocation_date}</span>` : ''}
+      </div>
+    </div>
+    ${residentHtml}
+    <div class="detail-section" style="border-bottom:none;">
+      <div class="detail-field">
+        <div class="detail-field-label">SVG Map ID</div>
+        <div class="detail-field-value" style="font-family:monospace;font-size:.8rem;color:#64748b;">${d.svg_id}</div>
+      </div>
+    </div>`;
+}
+</script>
+{% endblock %}

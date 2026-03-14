@@ -1,0 +1,110 @@
+{% extends 'housing/base.html' %}
+{% block title %}My Dashboard{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h2><i class="bi bi-house me-2"></i>Welcome, {{ request.user.first_name|default:request.user.username }}!</h2>
+  <p>Typhoon Haiyan Relief Housing Program – Applicant Portal</p>
+</div>
+
+<div class="row g-3">
+  <!-- Application status card -->
+  <div class="col-md-6">
+    <div class="card shadow-sm h-100" style="border-radius:12px; border:none;">
+      <div class="card-header fw-semibold" style="background:#0038A8; color:#fff; border-radius:12px 12px 0 0;">
+        <i class="bi bi-file-earmark-text me-2"></i>Application Status
+      </div>
+      <div class="card-body">
+        {% if application %}
+          <div class="d-flex align-items-center gap-3 mb-3">
+            {% if application.status == 'pending' %}
+            <div style="font-size:2.5rem; color:#f59e0b;"><i class="bi bi-hourglass-split"></i></div>
+            <div>
+              <div class="fw-bold fs-5">Under Review</div>
+              <div class="text-muted small">Your application is being processed.</div>
+            </div>
+            {% elif application.status == 'approved' %}
+            <div style="font-size:2.5rem; color:#059669;"><i class="bi bi-check-circle-fill"></i></div>
+            <div>
+              <div class="fw-bold fs-5 text-success">Approved!</div>
+              <div class="text-muted small">Your application has been approved.</div>
+            </div>
+            {% else %}
+            <div style="font-size:2.5rem; color:#6b7280;"><i class="bi bi-x-circle-fill"></i></div>
+            <div>
+              <div class="fw-bold fs-5 text-secondary">Rejected</div>
+              <div class="text-muted small">{{ application.notes|default:"Please contact the office for details." }}</div>
+            </div>
+            {% endif %}
+          </div>
+          <table class="table table-sm">
+            <tr><th>Submitted</th><td>{{ application.submission_date|date:"M d, Y" }}</td></tr>
+            <tr><th>Family Size</th><td>{{ application.family_size }} person(s)</td></tr>
+            {% if application.review_date %}
+            <tr><th>Review Date</th><td>{{ application.review_date|date:"M d, Y" }}</td></tr>
+            {% endif %}
+          </table>
+          <a href="{% url 'my_application' %}" class="btn btn-outline-primary btn-sm">
+            <i class="bi bi-pencil me-1"></i>View / Edit Application
+          </a>
+        {% else %}
+          <div class="text-center py-3">
+            <i class="bi bi-file-earmark-plus" style="font-size:2.5rem; color:#0038A8;"></i>
+            <p class="mt-2 text-muted">You have not submitted an application yet.</p>
+            <a href="{% url 'my_application' %}" class="btn btn-primary" style="border-radius:10px;">
+              <i class="bi bi-plus-circle me-2"></i>Submit Application Now
+            </a>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- House allocation card -->
+  <div class="col-md-6">
+    <div class="card shadow-sm h-100" style="border-radius:12px; border:none;">
+      <div class="card-header fw-semibold" style="background:#0038A8; color:#fff; border-radius:12px 12px 0 0;">
+        <i class="bi bi-house-door me-2"></i>House Allocation
+      </div>
+      <div class="card-body">
+        {% if allocated_house %}
+          <div class="text-center">
+            <div style="font-size:3rem; color:#059669;"><i class="bi bi-house-fill"></i></div>
+            <h4 class="fw-bold mt-2">{{ allocated_house.house_number }}</h4>
+            <p class="text-success fw-semibold">House Allocated!</p>
+            <p class="text-muted small">Allocation Date: {{ allocated_house.allocation_date|date:"M d, Y" }}</p>
+          </div>
+        {% else %}
+          <div class="text-center py-3">
+            <i class="bi bi-house-exclamation" style="font-size:2.5rem; color:#6b7280;"></i>
+            <p class="mt-2 text-muted">
+              No house has been allocated to you yet.
+              {% if application and application.status == 'approved' %}
+              <br><span class="text-success small fw-semibold">Your application is approved – awaiting house assignment.</span>
+              {% elif not application %}
+              <br><span class="small">Submit your application to be considered.</span>
+              {% endif %}
+            </p>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Info card -->
+  <div class="col-12">
+    <div class="card" style="border-radius:12px; border:2px solid #FCD116; background:#fffbeb;">
+      <div class="card-body">
+        <h6 class="fw-bold" style="color:#0038A8;">
+          <i class="bi bi-info-circle me-2"></i>About This Program
+        </h6>
+        <p class="small text-muted mb-0">
+          This housing program was established to assist families displaced by Typhoon Haiyan (Yolanda)
+          in November 2013. Through generous donations, the Barangay Housing Village provides permanent
+          homes to qualified beneficiaries. For inquiries, please visit the Barangay Hall.
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

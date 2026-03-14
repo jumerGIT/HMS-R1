@@ -1,0 +1,244 @@
+{% extends 'housing/base.html' %}
+{% block title %}Import Houses – ECIMMS{% endblock %}
+
+{% block extra_head %}
+<style>
+.upload-area {
+  border: 2px dashed #cbd5e1;
+  border-radius: 12px;
+  padding: 2.5rem 2rem;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color .2s, background .2s;
+  background: #f8fafc;
+}
+.upload-area:hover, .upload-area.dragover {
+  border-color: var(--ph-blue);
+  background: #eff6ff;
+}
+.upload-area input[type="file"] { display: none; }
+.upload-icon { font-size: 2.5rem; color: #94a3b8; }
+.upload-area.has-file .upload-icon { color: var(--ph-blue); }
+
+.result-table th { font-size: .76rem; text-transform: uppercase; letter-spacing: .05em; color: #64748b; }
+.result-table td { font-size: .83rem; vertical-align: middle; }
+
+.csv-format-box {
+  background: #1e293b;
+  color: #e2e8f0;
+  border-radius: 10px;
+  padding: 1rem 1.25rem;
+  font-family: 'Cascadia Code', 'Consolas', monospace;
+  font-size: .8rem;
+  line-height: 1.7;
+}
+.csv-format-box .csv-header { color: #7dd3fc; }
+.csv-format-box .csv-row { color: #d1fae5; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+  <div>
+    <h2><i class="bi bi-file-earmark-arrow-up me-2"></i>Import Houses via CSV</h2>
+    <p>Bulk-add house records by uploading a CSV file</p>
+  </div>
+  <a href="{% url 'house_list' %}" class="btn btn-light d-flex align-items-center gap-2"
+     style="border-radius:9px; font-size:.875rem; font-weight:600;">
+    <i class="bi bi-arrow-left"></i> Back to Inventory
+  </a>
+</div>
+
+<div class="row g-4">
+
+  <!-- LEFT: Upload form + format guide -->
+  <div class="col-lg-5">
+
+    <!-- CSV Format guide -->
+    <div class="card mb-3" style="border-radius:12px; border:1.5px solid #e2e8f0;">
+      <div class="card-body">
+        <h6 class="fw-bold mb-3" style="font-size:.85rem;"><i class="bi bi-info-circle me-1 text-primary"></i>Expected CSV Format</h6>
+        <div class="csv-format-box">
+          <div class="csv-header">site,house address,coordinates</div>
+          <div class="csv-row">1,Block No. 1 | Lot No. 1,M98.29,246.24l-15.93...</div>
+          <div class="csv-row">1,Block No. 1 | Lot No. 2,</div>
+          <div class="csv-row">2,Block No. 1 | Lot No. 1,M75.5,545.5h-13V522...</div>
+        </div>
+        <ul class="mt-3 mb-0 small text-muted ps-3" style="line-height:2;">
+          <li><strong>site</strong> — must be <code>1</code> or <code>2</code></li>
+          <li><strong>house address</strong> — e.g. <code>Block No. 1 | Lot No. 1</code></li>
+          <li><strong>coordinates</strong> — SVG path data (optional, can be blank)</li>
+          <li>Status is automatically set to <strong>Available</strong></li>
+          <li>Duplicate entries (same site + address) are skipped</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Upload form -->
+    <div class="card" style="border-radius:12px; border:1.5px solid #e2e8f0;">
+      <div class="card-body">
+        <form method="post" enctype="multipart/form-data" id="importForm">
+          {% csrf_token %}
+
+          <label class="upload-area w-100 mb-3" id="uploadArea" for="csvFile">
+            <input type="file" name="csv_file" id="csvFile" accept=".csv">
+            <div class="upload-icon mb-2"><i class="bi bi-file-earmark-spreadsheet"></i></div>
+            <div class="fw-semibold" id="uploadLabel">Click to choose a CSV file</div>
+            <div class="text-muted small mt-1">or drag and drop here</div>
+          </label>
+
+          <button type="submit" class="btn btn-primary w-100 fw-semibold" style="border-radius:8px;" id="submitBtn" disabled>
+            <i class="bi bi-upload me-1"></i> Import Houses
+          </button>
+        </form>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- RIGHT: Results -->
+  <div class="col-lg-7">
+    {% if results is not None %}
+
+    <!-- Summary badges -->
+    <div class="d-flex gap-2 flex-wrap mb-3">
+      <span class="badge rounded-pill px-3 py-2 fs-6" style="background:#f0fdf4;color:#15803d;border:1.5px solid #bbf7d0;">
+        <i class="bi bi-check-circle me-1"></i>{{ results.added|length }} Added
+      </span>
+      <span class="badge rounded-pill px-3 py-2 fs-6" style="background:#fffbeb;color:#92400e;border:1.5px solid #fde68a;">
+        <i class="bi bi-skip-forward me-1"></i>{{ results.skipped|length }} Skipped
+      </span>
+      <span class="badge rounded-pill px-3 py-2 fs-6" style="background:#fff1f2;color:#be123c;border:1.5px solid #fecdd3;">
+        <i class="bi bi-x-circle me-1"></i>{{ results.errors|length }} Errors
+      </span>
+    </div>
+
+    <!-- Added -->
+    {% if results.added %}
+    <div class="card mb-3" style="border-radius:12px; border:1.5px solid #bbf7d0;">
+      <div class="card-header py-2 px-3" style="background:#f0fdf4; border-bottom:1.5px solid #bbf7d0; border-radius:12px 12px 0 0;">
+        <span class="fw-bold small" style="color:#15803d;"><i class="bi bi-check-circle me-1"></i>Successfully Added ({{ results.added|length }})</span>
+      </div>
+      <div class="card-body p-0">
+        <div style="max-height:220px; overflow-y:auto;">
+          <table class="table table-sm result-table mb-0">
+            <thead><tr><th class="ps-3">Row</th><th>Site</th><th>House Address</th></tr></thead>
+            <tbody>
+              {% for h in results.added %}
+              <tr>
+                <td class="ps-3 text-muted">{{ h.row }}</td>
+                <td><span class="badge" style="background:#dbeafe;color:#1d4ed8;font-size:.72rem;">Site {{ h.site }}</span></td>
+                <td class="fw-medium">{{ h.house_address }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Skipped -->
+    {% if results.skipped %}
+    <div class="card mb-3" style="border-radius:12px; border:1.5px solid #fde68a;">
+      <div class="card-header py-2 px-3" style="background:#fffbeb; border-bottom:1.5px solid #fde68a; border-radius:12px 12px 0 0;">
+        <span class="fw-bold small" style="color:#92400e;"><i class="bi bi-skip-forward me-1"></i>Skipped – Already Exists ({{ results.skipped|length }})</span>
+      </div>
+      <div class="card-body p-0">
+        <div style="max-height:180px; overflow-y:auto;">
+          <table class="table table-sm result-table mb-0">
+            <thead><tr><th class="ps-3">Row</th><th>Site</th><th>House Address</th></tr></thead>
+            <tbody>
+              {% for h in results.skipped %}
+              <tr>
+                <td class="ps-3 text-muted">{{ h.row }}</td>
+                <td><span class="badge" style="background:#fef9c3;color:#854d0e;font-size:.72rem;">Site {{ h.site }}</span></td>
+                <td>{{ h.house_address }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Errors -->
+    {% if results.errors %}
+    <div class="card mb-3" style="border-radius:12px; border:1.5px solid #fecdd3;">
+      <div class="card-header py-2 px-3" style="background:#fff1f2; border-bottom:1.5px solid #fecdd3; border-radius:12px 12px 0 0;">
+        <span class="fw-bold small" style="color:#be123c;"><i class="bi bi-x-circle me-1"></i>Errors ({{ results.errors|length }})</span>
+      </div>
+      <div class="card-body p-0">
+        <div style="max-height:180px; overflow-y:auto;">
+          <table class="table table-sm result-table mb-0">
+            <thead><tr><th class="ps-3">Row</th><th>Reason</th></tr></thead>
+            <tbody>
+              {% for e in results.errors %}
+              <tr>
+                <td class="ps-3 text-muted">{{ e.row }}</td>
+                <td class="text-danger">{{ e.reason }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if results.added %}
+    <a href="{% url 'house_list' %}" class="btn btn-primary" style="border-radius:8px; font-weight:600;">
+      <i class="bi bi-houses me-1"></i> View House Inventory
+    </a>
+    {% endif %}
+
+    {% else %}
+    <!-- Empty state before first upload -->
+    <div class="d-flex align-items-center justify-content-center h-100" style="min-height:300px;">
+      <div class="text-center text-muted">
+        <i class="bi bi-arrow-left-circle" style="font-size:2.5rem; opacity:.35;"></i>
+        <p class="mt-2 mb-0 small">Upload a CSV file to see import results here.</p>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const csvFile   = document.getElementById('csvFile');
+const uploadArea = document.getElementById('uploadArea');
+const uploadLabel = document.getElementById('uploadLabel');
+const submitBtn  = document.getElementById('submitBtn');
+
+csvFile.addEventListener('change', () => {
+  if (csvFile.files.length) {
+    uploadLabel.textContent = csvFile.files[0].name;
+    uploadArea.classList.add('has-file');
+    submitBtn.disabled = false;
+  } else {
+    uploadLabel.textContent = 'Click to choose a CSV file';
+    uploadArea.classList.remove('has-file');
+    submitBtn.disabled = true;
+  }
+});
+
+// Drag-and-drop support
+uploadArea.addEventListener('dragover', e => { e.preventDefault(); uploadArea.classList.add('dragover'); });
+uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('dragover'));
+uploadArea.addEventListener('drop', e => {
+  e.preventDefault();
+  uploadArea.classList.remove('dragover');
+  const file = e.dataTransfer.files[0];
+  if (file && file.name.endsWith('.csv')) {
+    const dt = new DataTransfer();
+    dt.items.add(file);
+    csvFile.files = dt.files;
+    csvFile.dispatchEvent(new Event('change'));
+  }
+});
+</script>
+{% endblock %}

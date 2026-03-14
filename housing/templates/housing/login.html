@@ -1,0 +1,466 @@
+{% extends 'housing/base_login.html' %}
+{% block title %}Sign In – ECIMMS{% endblock %}
+
+{% block content %}
+{% load static %}
+<div class="login-root">
+
+  <!-- ════════════════════════════════════════
+       LEFT  –  form panel
+  ════════════════════════════════════════ -->
+  <aside class="lp-left">
+    <div class="lp-left__inner">
+
+      <!-- Brand -->
+      <div class="lp-brand">
+        <img src="{% static 'housing/img/logo.png' %}" class="lp-brand__logo" alt="City of Escalante Seal">
+        <div class="lp-brand__text">
+          <span class="lp-brand__acronym">ECIMMS</span>
+          <span class="lp-brand__full">Escalante City Information<br>Management & Mapping System</span>
+        </div>
+      </div>
+
+      <!-- Heading -->
+      <div class="lp-heading">
+        <p>Sign in to access your dashboard</p>
+      </div>
+
+      <!-- Alerts (Django messages + form non-field errors) -->
+      {% if messages or form.non_field_errors %}
+      <div class="lp-alerts">
+        {% for message in messages %}
+        <div class="lp-alert lp-alert--{{ message.tags }}">
+          <i class="bi bi-exclamation-circle-fill me-2"></i>{{ message }}
+        </div>
+        {% endfor %}
+        {% for error in form.non_field_errors %}
+        <div class="lp-alert lp-alert--error">
+          <i class="bi bi-shield-exclamation me-2"></i>{{ error }}
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      <!-- Form -->
+      <form method="post" novalidate class="lp-form {% if form.non_field_errors %}lp-form--shake{% endif %}" id="loginForm">
+        {% csrf_token %}
+        {% for field in form %}
+        <div class="lp-field {% if field.errors or form.non_field_errors %}lp-field--error{% endif %}">
+          <label class="lp-field__label" for="{{ field.id_for_label }}">
+            {{ field.label }}
+          </label>
+          <div class="lp-field__wrap">
+            <span class="lp-field__icon">
+              {% if field.html_name == 'password' %}
+              <i class="bi bi-lock"></i>
+              {% else %}
+              <i class="bi bi-person"></i>
+              {% endif %}
+            </span>
+            <input
+              type="{{ field.field.widget.input_type }}"
+              name="{{ field.html_name }}"
+              id="{{ field.id_for_label }}"
+              class="lp-field__input"
+              placeholder="Enter your {{ field.label|lower }}"
+              {% if field.value %}value="{{ field.value }}"{% endif %}
+              autocomplete="{% if field.html_name == 'password' %}current-password{% else %}username{% endif %}"
+            >
+            {% if field.html_name == 'password' %}
+            <button type="button" class="lp-field__toggle" onclick="togglePassword(this)" aria-label="Toggle password">
+              <i class="bi bi-eye"></i>
+            </button>
+            {% endif %}
+          </div>
+          {% for error in field.errors %}
+          <span class="lp-field__error"><i class="bi bi-x-circle me-1"></i>{{ error }}</span>
+          {% endfor %}
+        </div>
+        {% endfor %}
+
+        <button type="submit" class="lp-btn" id="submitBtn">
+          <span class="lp-btn__text">Sign In</span>
+          <span class="lp-btn__icon"><i class="bi bi-arrow-right"></i></span>
+        </button>
+      </form>
+
+      <!-- Footer links -->
+      <p class="lp-register">
+        Don't have an account?
+        <a href="{% url 'register' %}">Register here</a>
+      </p>
+
+      <footer class="lp-footer">
+        <i class="bi bi-shield-lock-fill me-1"></i>
+        Secure government relief housing system
+      </footer>
+
+    </div>
+  </aside>
+
+  <!-- ════════════════════════════════════════
+       RIGHT  –  carousel panel
+  ════════════════════════════════════════ -->
+  <section class="lp-right" aria-hidden="true">
+
+    <!-- Carousel -->
+    <div id="loginCarousel" class="carousel slide lp-carousel" data-bs-ride="carousel" data-bs-interval="5000">
+      <div class="carousel-inner lp-carousel__inner">
+        <div class="carousel-item active">
+          <img src="{% static 'housing/img/login_bg1.jpg' %}" class="lp-carousel__img" alt="">
+        </div>
+        <div class="carousel-item">
+          <img src="{% static 'housing/img/login_bg2.jpg' %}" class="lp-carousel__img" alt="">
+        </div>
+      </div>
+      <!-- Gradient overlay -->
+      <div class="lp-carousel__overlay"></div>
+    </div>
+
+    <!-- Info card pinned to bottom -->
+    <div class="lp-info">
+      <span class="lp-info__badge">
+        <i class="bi bi-geo-alt-fill me-1"></i>Escalante City, Negros Occidental
+      </span>
+      <h2 class="lp-info__heading">
+        Housing Villages
+      </h2>
+      <p class="lp-info__desc">
+        Permanent resettlement program for families displaced<br>
+        by Super Typhoon Yolanda (Haiyan).
+      </p>
+
+      <div class="lp-stats">
+        <div class="lp-stat">
+          <span class="lp-stat__num">765</span>
+          <span class="lp-stat__lbl">Houses</span>
+        </div>
+        <div class="lp-stat__div"></div>
+        <div class="lp-stat">
+          <span class="lp-stat__num">2</span>
+          <span class="lp-stat__lbl">Sites</span>
+        </div>
+        <div class="lp-stat__div"></div>
+        <div class="lp-stat">
+          <span class="lp-stat__num">24+</span>
+          <span class="lp-stat__lbl">Families</span>
+        </div>
+      </div>
+
+      <!-- Carousel dots -->
+      <div class="lp-dots">
+        <button class="lp-dot lp-dot--active" data-bs-target="#loginCarousel" data-bs-slide-to="0"></button>
+        <button class="lp-dot" data-bs-target="#loginCarousel" data-bs-slide-to="1"></button>
+      </div>
+    </div>
+
+  </section>
+</div>
+
+<style>
+/* ── Reset ─────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; background: #0f172a; }
+
+/* ── Root layout ────────────────────────────────── */
+.login-root {
+  display: flex;
+  min-height: 100vh;
+}
+
+/* ══════════════════════════════════════════════════
+   LEFT PANEL
+══════════════════════════════════════════════════ */
+.lp-left {
+  width: 460px;
+  min-width: 320px;
+  flex-shrink: 0;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2.5rem 2rem;
+  position: relative;
+  z-index: 2;
+  box-shadow: 4px 0 40px rgba(0,0,0,.18);
+}
+.lp-left__inner {
+  width: 100%;
+  max-width: 360px;
+  animation: fadeSlideUp .5s ease both;
+}
+
+/* Brand */
+.lp-brand {
+  display: flex;
+  align-items: center;
+  gap: .85rem;
+  margin-bottom: 2.2rem;
+}
+.lp-brand__logo {
+  width: 56px; height: 56px;
+  object-fit: contain;
+  flex-shrink: 0;
+  filter: drop-shadow(0 2px 6px rgba(0,0,0,.18));
+}
+.lp-brand__acronym {
+  display: block;
+  font-size: 1.1rem; font-weight: 800;
+  color: #0038A8; letter-spacing: .5px;
+}
+.lp-brand__full {
+  display: block;
+  font-size: .72rem; color: #6b7280; line-height: 1.4;
+}
+
+/* Heading */
+.lp-heading {
+  margin-bottom: 1.75rem;
+}
+.lp-heading h1 {
+  font-size: 1.75rem; font-weight: 700;
+  color: #0f172a; line-height: 1.2;
+}
+.lp-heading p {
+  font-size: .875rem; color: #6b7280; margin-top: .3rem;
+}
+
+/* Alerts */
+.lp-alerts { margin-bottom: 1.25rem; }
+.lp-alert {
+  padding: .65rem 1rem; border-radius: 10px;
+  font-size: .85rem; margin-bottom: .5rem;
+  display: flex; align-items: center;
+}
+.lp-alert--error, .lp-alert--danger {
+  background: #fef2f2; color: #dc2626; border: 1px solid #fecaca;
+}
+.lp-alert--warning {
+  background: #fffbeb; color: #d97706; border: 1px solid #fde68a;
+}
+.lp-alert--success {
+  background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0;
+}
+
+/* Fields */
+.lp-form { margin-bottom: 1rem; }
+.lp-field { margin-bottom: 1.2rem; }
+.lp-field__label {
+  display: block; font-size: .8rem; font-weight: 600;
+  color: #374151; margin-bottom: .45rem; letter-spacing: .02em;
+}
+.lp-field__wrap {
+  position: relative; display: flex; align-items: center;
+}
+.lp-field__icon {
+  position: absolute; left: .85rem;
+  color: #9ca3af; font-size: .95rem; pointer-events: none;
+  transition: color .2s;
+}
+.lp-field__input {
+  width: 100%; padding: .7rem .85rem .7rem 2.5rem;
+  border: 1.5px solid #e5e7eb; border-radius: 10px;
+  font-size: .9rem; color: #0f172a; background: #f9fafb;
+  outline: none; transition: border-color .2s, box-shadow .2s, background .2s;
+  font-family: inherit;
+}
+.lp-field__input::placeholder { color: #9ca3af; }
+.lp-field__input:focus {
+  border-color: #0038A8; background: #fff;
+  box-shadow: 0 0 0 3px rgba(0,56,168,.1);
+}
+.lp-field__input:focus + .lp-field__icon,
+.lp-field__wrap:focus-within .lp-field__icon { color: #0038A8; }
+.lp-field__toggle {
+  position: absolute; right: .75rem;
+  background: none; border: none; color: #9ca3af;
+  cursor: pointer; padding: .25rem; font-size: 1rem;
+  transition: color .2s;
+}
+.lp-field__toggle:hover { color: #0038A8; }
+.lp-field__error {
+  display: block; font-size: .78rem; color: #dc2626; margin-top: .35rem;
+}
+.lp-field--error .lp-field__input {
+  border-color: #dc2626; background: #fff;
+}
+
+/* Button */
+.lp-btn {
+  width: 100%; margin-top: .5rem;
+  display: flex; align-items: center; justify-content: center; gap: .6rem;
+  padding: .8rem 1.5rem;
+  background: linear-gradient(135deg, #0038A8 0%, #1a56cc 100%);
+  color: #fff; border: none; border-radius: 10px;
+  font-size: .95rem; font-weight: 600; font-family: inherit;
+  cursor: pointer; position: relative; overflow: hidden;
+  transition: transform .15s, box-shadow .15s;
+  box-shadow: 0 4px 14px rgba(0,56,168,.4);
+}
+.lp-btn::after {
+  content: ''; position: absolute; inset: 0;
+  background: rgba(255,255,255,0);
+  transition: background .2s;
+}
+.lp-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(0,56,168,.45);
+}
+.lp-btn:hover::after { background: rgba(255,255,255,.08); }
+.lp-btn:active { transform: translateY(0); }
+.lp-btn__icon {
+  display: flex; align-items: center;
+  transition: transform .2s;
+}
+.lp-btn:hover .lp-btn__icon { transform: translateX(4px); }
+
+/* Register + footer */
+.lp-register {
+  text-align: center; font-size: .83rem; color: #6b7280; margin: 1rem 0 0;
+}
+.lp-register a {
+  color: #0038A8; font-weight: 600; text-decoration: none;
+}
+.lp-register a:hover { text-decoration: underline; }
+.lp-footer {
+  text-align: center; font-size: .75rem; color: #9ca3af;
+  margin-top: 1.75rem; padding-top: 1.25rem;
+  border-top: 1px solid #f3f4f6;
+}
+
+/* ══════════════════════════════════════════════════
+   RIGHT PANEL
+══════════════════════════════════════════════════ */
+.lp-right {
+  flex: 1; position: relative; overflow: hidden;
+  min-height: 100vh;
+}
+
+/* Carousel */
+.lp-carousel, .lp-carousel__inner,
+.lp-carousel .carousel-item { height: 100%; }
+.lp-carousel__img {
+  width: 100%; height: 100%;
+  object-fit: cover; object-position: center;
+  filter: brightness(.82);
+}
+.lp-carousel__overlay {
+  position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(
+    to top,
+    rgba(3,7,30,.78)   0%,
+    rgba(3,7,30,.32)  50%,
+    rgba(3,7,30,.05) 100%
+  );
+}
+
+/* Info card */
+.lp-info {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  padding: 2.5rem 3rem;
+  animation: fadeSlideUp .6s .2s ease both;
+}
+.lp-info__badge {
+  display: inline-flex; align-items: center;
+  background: rgba(252,209,22,.15); border: 1px solid rgba(252,209,22,.35);
+  color: #FCD116; border-radius: 20px;
+  font-size: .75rem; font-weight: 600; padding: .3rem .8rem;
+  letter-spacing: .03em; margin-bottom: 1rem;
+  backdrop-filter: blur(6px);
+}
+.lp-info__heading {
+  font-size: 2rem; font-weight: 800; color: #fff; line-height: 1.2;
+  margin-bottom: .75rem;
+}
+.lp-info__desc {
+  font-size: .9rem; color: rgba(255,255,255,.72); line-height: 1.6;
+  margin-bottom: 1.75rem;
+}
+
+/* Stats */
+.lp-stats {
+  display: flex; align-items: center; gap: 1.25rem;
+  margin-bottom: 1.75rem;
+}
+.lp-stat { text-align: center; }
+.lp-stat__num {
+  display: block; font-size: 1.6rem; font-weight: 800; color: #fff;
+  line-height: 1;
+}
+.lp-stat__lbl {
+  display: block; font-size: .72rem; color: rgba(255,255,255,.6);
+  text-transform: uppercase; letter-spacing: .07em; margin-top: .2rem;
+}
+.lp-stat__div {
+  width: 1px; height: 36px; background: rgba(255,255,255,.2);
+}
+
+/* Carousel dots */
+.lp-dots { display: flex; gap: .4rem; }
+.lp-dot {
+  width: 24px; height: 4px; border-radius: 2px; border: none;
+  background: rgba(255,255,255,.35); cursor: pointer;
+  transition: background .3s, width .3s; padding: 0;
+}
+.lp-dot--active, .lp-dot:hover { background: #FCD116; width: 36px; }
+
+/* ── Animations ─────────────────────────────────── */
+@keyframes fadeSlideUp {
+  from { opacity: 0; transform: translateY(18px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  15%       { transform: translateX(-7px); }
+  30%       { transform: translateX(7px); }
+  45%       { transform: translateX(-5px); }
+  60%       { transform: translateX(5px); }
+  75%       { transform: translateX(-3px); }
+  90%       { transform: translateX(3px); }
+}
+.lp-form--shake {
+  animation: shake .5s ease both;
+}
+
+/* Error icon tint */
+.lp-field--error .lp-field__icon { color: #dc2626; }
+.lp-field--error .lp-field__input:focus {
+  border-color: #dc2626;
+  box-shadow: 0 0 0 3px rgba(220,38,38,.12);
+}
+
+/* ── Responsive ─────────────────────────────────── */
+@media (max-width: 900px) {
+  .lp-left { width: 400px; }
+  .lp-info { padding: 1.75rem 2rem; }
+  .lp-info__heading { font-size: 1.5rem; }
+}
+
+@media (max-width: 640px) {
+  .lp-right { display: none; }
+  .lp-left  { width: 100%; min-height: 100vh; }
+}
+</style>
+
+<script>
+function togglePassword(btn) {
+  const wrap = btn.closest('.lp-field__wrap');
+  const input = wrap.querySelector('.lp-field__input');
+  const icon  = btn.querySelector('i');
+  const isHidden = input.type === 'password';
+  input.type = isHidden ? 'text' : 'password';
+  icon.className = isHidden ? 'bi bi-eye-slash' : 'bi bi-eye';
+}
+
+// Sync Bootstrap carousel with custom dots
+const carousel = document.getElementById('loginCarousel');
+const dots = document.querySelectorAll('.lp-dot');
+if (carousel) {
+  carousel.addEventListener('slide.bs.carousel', e => {
+    dots.forEach(d => d.classList.remove('lp-dot--active'));
+    dots[e.to]?.classList.add('lp-dot--active');
+  });
+}
+</script>
+{% endblock %}

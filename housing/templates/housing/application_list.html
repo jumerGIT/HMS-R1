@@ -1,0 +1,317 @@
+{% extends 'housing/base.html' %}
+{% block title %}Applications – ECIMMS{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css">
+<link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css">
+<style>
+.filter-pill {
+  display: inline-flex; align-items: center; gap: .35rem;
+  padding: .35rem .9rem; border-radius: 20px; font-size: .8rem;
+  font-weight: 600; border: 1.5px solid transparent;
+  text-decoration: none; transition: all .15s; line-height: 1.4;
+}
+.filter-pill-all      { border-color:#e2e8f0; color:#64748b; background:#f8fafc; }
+.filter-pill-all.active, .filter-pill-all:hover { border-color:#0038A8; color:#0038A8; background:#eff6ff; }
+.filter-pill-pending  { border-color:#fde68a; color:#d97706; background:#fffbeb; }
+.filter-pill-pending.active, .filter-pill-pending:hover { background:#fef3c7; border-color:#f59e0b; }
+.filter-pill-approved { border-color:#bbf7d0; color:#15803d; background:#f0fdf4; }
+.filter-pill-approved.active, .filter-pill-approved:hover { background:#dcfce7; border-color:#22c55e; }
+.filter-pill-rejected { border-color:#e2e8f0; color:#64748b; background:#f8fafc; }
+.filter-pill-rejected.active, .filter-pill-rejected:hover { background:#f1f5f9; border-color:#94a3b8; }
+
+.app-status {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: .75rem; font-weight: 700; padding: .25rem .7rem;
+  border-radius: 20px; text-transform: uppercase; letter-spacing: .04em;
+}
+.app-status-pending  { background:#fffbeb; color:#d97706; border:1.5px solid #fde68a; }
+.app-status-approved { background:#f0fdf4; color:#15803d; border:1.5px solid #bbf7d0; }
+.app-status-rejected { background:#f8fafc; color:#64748b; border:1.5px solid #e2e8f0; }
+
+.btn-allocate {
+  display: inline-flex; align-items: center; gap: .3rem;
+  padding: .3rem .7rem; border-radius: 7px; font-size: .75rem;
+  font-weight: 600; border: 1.5px solid #2563eb; color: #2563eb;
+  background: #eff6ff; text-decoration: none; cursor: pointer;
+  transition: all .15s;
+}
+.btn-allocate:hover { background: #2563eb; color: #fff; }
+
+.badge-housed {
+  display: inline-flex; align-items: center; gap: .3rem;
+  padding: .3rem .65rem; border-radius: 7px; font-size: .75rem;
+  font-weight: 600; background: #f0fdf4; color: #15803d;
+  border: 1.5px solid #bbf7d0;
+}
+
+/* Modal styles */
+#allocateModal .modal-header { background: #0038A8; color: #fff; border-radius: 12px 12px 0 0; }
+#allocateModal .modal-content { border-radius: 12px; border: none; box-shadow: 0 20px 60px rgba(0,0,0,.18); }
+#allocateModal .form-label { font-size: .82rem; font-weight: 600; color: #374151; }
+#allocateModal select.form-select { border-radius: 8px; font-size: .87rem; }
+#allocateModal select.form-select:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,.12); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+  <div>
+    <h2><i class="bi bi-file-earmark-text me-2"></i>Housing Applications</h2>
+    <p>Review and manage beneficiary applications</p>
+  </div>
+  <div class="d-flex gap-2 align-items-center flex-wrap">
+    <a href="{% url 'application_list' %}"
+       class="filter-pill filter-pill-all {% if not status_filter %}active{% endif %}">
+      <i class="bi bi-grid-3x3-gap"></i>All
+    </a>
+    <a href="{% url 'application_list' %}?status=pending"
+       class="filter-pill filter-pill-pending {% if status_filter == 'pending' %}active{% endif %}">
+      <i class="bi bi-clock"></i>Pending
+    </a>
+    <a href="{% url 'application_list' %}?status=approved"
+       class="filter-pill filter-pill-approved {% if status_filter == 'approved' %}active{% endif %}">
+      <i class="bi bi-check-circle"></i>Approved
+    </a>
+    <a href="{% url 'application_list' %}?status=rejected"
+       class="filter-pill filter-pill-rejected {% if status_filter == 'rejected' %}active{% endif %}">
+      <i class="bi bi-x-circle"></i>Rejected
+    </a>
+  </div>
+</div>
+
+<div class="card tbl-card">
+  <div class="card-body">
+    <table id="appTable" class="table table-hms mb-0" style="width:100%">
+        <thead>
+          <tr>
+            <th style="width:48px;">#</th>
+            <th>Full Name</th>
+            <th style="width:110px;">Family Size</th>
+            <th style="width:130px;">Submitted</th>
+            <th style="width:120px;">Status</th>
+            <th style="width:120px;">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for app in applications %}
+          <tr>
+            <td class="text-muted" style="font-size:.78rem; font-variant-numeric:tabular-nums;">{{ forloop.counter }}</td>
+            <td>
+              <span class="fw-semibold" style="font-size:.88rem;">{{ app.full_name }}</span>
+            </td>
+            <td>
+              <span class="d-inline-flex align-items-center gap-1" style="font-size:.85rem;">
+                <i class="bi bi-people text-muted" style="font-size:.75rem;"></i>{{ app.family_size }}
+              </span>
+            </td>
+            <td>
+              <span class="text-muted" style="font-size:.82rem;">{{ app.submission_date|date:"M d, Y" }}</span>
+            </td>
+            <td>
+              <span class="app-status app-status-{{ app.status }}">
+                {% if app.status == 'pending' %}<i class="bi bi-clock" style="font-size:.65rem;"></i>
+                {% elif app.status == 'approved' %}<i class="bi bi-check-circle" style="font-size:.65rem;"></i>
+                {% else %}<i class="bi bi-x-circle" style="font-size:.65rem;"></i>{% endif %}
+                {{ app.get_status_display }}
+              </span>
+            </td>
+            <td>
+              <div class="d-flex align-items-center gap-1">
+                <a href="{% url 'application_detail' app.pk %}"
+                   class="btn-icon btn-icon-review" title="Review Application">
+                  <i class="bi bi-arrow-right-circle"></i>
+                </a>
+                {% if app.status == 'approved' and can_allocate %}
+                  {% if app.applicant_id in allocated_applicant_ids %}
+                    <span class="badge-housed" title="House already allocated">
+                      <i class="bi bi-house-check" style="font-size:.72rem;"></i> Housed
+                    </span>
+                  {% else %}
+                    <button type="button"
+                            class="btn-allocate"
+                            title="Allocate a house"
+                            data-app-id="{{ app.pk }}"
+                            data-app-name="{{ app.full_name }}"
+                            onclick="openAllocateModal(this)">
+                      <i class="bi bi-house-add" style="font-size:.72rem;"></i> Allocate
+                    </button>
+                  {% endif %}
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+  </div>
+</div>
+
+<!-- ===================== Allocate House Modal ===================== -->
+{% if can_allocate %}
+<div class="modal fade" id="allocateModal" tabindex="-1" aria-labelledby="allocateModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:440px;">
+    <div class="modal-content">
+      <div class="modal-header py-3 px-4">
+        <div>
+          <h5 class="modal-title fw-bold mb-0" id="allocateModalLabel">
+            <i class="bi bi-house-add me-2"></i>Allocate House
+          </h5>
+          <p class="mb-0 mt-1 opacity-75" style="font-size:.8rem;" id="allocateApplicantName"></p>
+        </div>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+
+      <form method="post" id="allocateForm">
+        {% csrf_token %}
+        <input type="hidden" name="house_id" id="allocateHouseId">
+
+        <div class="modal-body px-4 py-3">
+
+          <!-- Sending Area -->
+          <div class="mb-3">
+            <label class="form-label" for="sendingAreaSelect">
+              Sending Area <span class="text-danger">*</span>
+            </label>
+            <select class="form-select" id="sendingAreaSelect" required>
+              <option value="">— Select sending area —</option>
+              {% for area in sending_areas %}
+              <option value="{{ area.site_number }}">Site {{ area.site_number }} – {{ area.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <!-- House Address -->
+          <div class="mb-2">
+            <label class="form-label" for="houseSelect">
+              House Address <span class="text-danger">*</span>
+            </label>
+            <select class="form-select" id="houseSelect" required disabled>
+              <option value="">— Select sending area first —</option>
+            </select>
+            <div id="houseLoadingSpinner" class="d-none mt-1">
+              <span class="spinner-border spinner-border-sm text-primary me-1"></span>
+              <small class="text-muted">Loading houses…</small>
+            </div>
+            <div id="noHousesMsg" class="d-none mt-1">
+              <small class="text-danger"><i class="bi bi-exclamation-circle me-1"></i>No available houses in this area.</small>
+            </div>
+          </div>
+
+        </div>
+
+        <div class="modal-footer px-4 pb-4 pt-2 border-0 gap-2">
+          <button type="button" class="btn btn-light fw-semibold" style="border-radius:8px; min-width:90px;" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary fw-semibold" style="border-radius:8px; min-width:130px;" id="allocateSubmitBtn" disabled>
+            <i class="bi bi-house-check me-1"></i>Confirm Allocation
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
+<script>
+$(document).ready(function () {
+  $('#appTable').DataTable({
+    dom: "<'dt-top'lf><'dt-buttons mb-2'B><'table-responsive'tr><'dt-bottom'ip>",
+    pageLength: 10,
+    lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, 'All']],
+    order: [[3, 'desc']],
+    columnDefs: [{ orderable: false, targets: [0, 5] }],
+    buttons: [
+      { extend: 'csv', text: '<i class="bi bi-file-earmark-spreadsheet me-1"></i>CSV', className: 'export-btn export-csv', exportOptions: { columns: ':not(:last-child)' } },
+      { extend: 'pdf', text: '<i class="bi bi-file-earmark-pdf me-1"></i>PDF', className: 'export-btn export-pdf', exportOptions: { columns: ':not(:last-child)' }, orientation: 'landscape', pageSize: 'A4' },
+    ],
+    language: {
+      emptyTable: 'No applications found.',
+      search: '',
+      searchPlaceholder: 'Search applications…',
+      lengthMenu: 'Show _MENU_',
+      info: 'Showing _START_–_END_ of _TOTAL_ applications',
+      paginate: { previous: '‹', next: '›' },
+    },
+  });
+});
+
+// ── Allocate modal ──────────────────────────────────────────────
+function openAllocateModal(btn) {
+  const appId   = btn.dataset.appId;
+  const appName = btn.dataset.appName;
+
+  document.getElementById('allocateApplicantName').textContent = appName;
+  document.getElementById('allocateForm').action = `/applications/${appId}/allocate/`;
+
+  // Reset selects
+  const siteSelect  = document.getElementById('sendingAreaSelect');
+  const houseSelect = document.getElementById('houseSelect');
+  const submitBtn   = document.getElementById('allocateSubmitBtn');
+
+  siteSelect.value = '';
+  houseSelect.innerHTML = '<option value="">— Select sending area first —</option>';
+  houseSelect.disabled = true;
+  document.getElementById('allocateHouseId').value = '';
+  document.getElementById('noHousesMsg').classList.add('d-none');
+  submitBtn.disabled = true;
+
+  new bootstrap.Modal(document.getElementById('allocateModal')).show();
+}
+
+document.getElementById('sendingAreaSelect')?.addEventListener('change', function () {
+  const siteNumber = this.value;
+  const houseSelect = document.getElementById('houseSelect');
+  const spinner     = document.getElementById('houseLoadingSpinner');
+  const noMsg       = document.getElementById('noHousesMsg');
+  const submitBtn   = document.getElementById('allocateSubmitBtn');
+  const hiddenId    = document.getElementById('allocateHouseId');
+
+  houseSelect.innerHTML = '<option value="">— Select a house —</option>';
+  houseSelect.disabled = true;
+  hiddenId.value = '';
+  submitBtn.disabled = true;
+  noMsg.classList.add('d-none');
+
+  if (!siteNumber) return;
+
+  spinner.classList.remove('d-none');
+
+  fetch(`/api/houses/by-site/${siteNumber}/`)
+    .then(r => r.json())
+    .then(data => {
+      spinner.classList.add('d-none');
+      if (!data.houses.length) {
+        noMsg.classList.remove('d-none');
+        return;
+      }
+      data.houses.forEach(h => {
+        const opt = document.createElement('option');
+        opt.value = h.id;
+        opt.textContent = h.house_number;
+        houseSelect.appendChild(opt);
+      });
+      houseSelect.disabled = false;
+    })
+    .catch(() => { spinner.classList.add('d-none'); });
+});
+
+document.getElementById('houseSelect')?.addEventListener('change', function () {
+  const hiddenId  = document.getElementById('allocateHouseId');
+  const submitBtn = document.getElementById('allocateSubmitBtn');
+  hiddenId.value      = this.value;
+  submitBtn.disabled  = !this.value;
+});
+</script>
+{% endblock %}
