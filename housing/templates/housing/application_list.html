@@ -61,22 +61,29 @@
     <p>Review and manage beneficiary applications</p>
   </div>
   <div class="d-flex gap-2 align-items-center flex-wrap">
-    <a href="{% url 'application_list' %}"
-       class="filter-pill filter-pill-all {% if not status_filter %}active{% endif %}">
+    <button onclick="filterApps(this,'')"
+       class="filter-pill filter-pill-all active" data-filter="">
       <i class="bi bi-grid-3x3-gap"></i>All
-    </a>
-    <a href="{% url 'application_list' %}?status=pending"
-       class="filter-pill filter-pill-pending {% if status_filter == 'pending' %}active{% endif %}">
+    </button>
+    <button onclick="filterApps(this,'pending')"
+       class="filter-pill filter-pill-pending" data-filter="pending">
       <i class="bi bi-clock"></i>Pending
-    </a>
-    <a href="{% url 'application_list' %}?status=approved"
-       class="filter-pill filter-pill-approved {% if status_filter == 'approved' %}active{% endif %}">
+    </button>
+    <button onclick="filterApps(this,'approved')"
+       class="filter-pill filter-pill-approved" data-filter="approved">
       <i class="bi bi-check-circle"></i>Approved
-    </a>
-    <a href="{% url 'application_list' %}?status=rejected"
-       class="filter-pill filter-pill-rejected {% if status_filter == 'rejected' %}active{% endif %}">
+    </button>
+    <button onclick="filterApps(this,'rejected')"
+       class="filter-pill filter-pill-rejected" data-filter="rejected">
       <i class="bi bi-x-circle"></i>Rejected
+    </button>
+    {% if request.user.role in 'admin,beneficiary_incharge' or request.user.is_admin_role or request.user.is_beneficiary_incharge %}
+    <a href="{% url 'walkin_application' %}"
+       class="btn btn-sm fw-semibold ms-2"
+       style="background:#7c3aed;color:#fff;border-radius:9px;border:none;padding:.38rem .9rem;">
+      <i class="bi bi-person-walking me-1"></i>Add Walk-in
     </a>
+    {% endif %}
   </div>
 </div>
 
@@ -99,6 +106,13 @@
             <td class="text-muted" style="font-size:.78rem; font-variant-numeric:tabular-nums;">{{ forloop.counter }}</td>
             <td>
               <span class="fw-semibold" style="font-size:.88rem;">{{ app.full_name }}</span>
+              {% if app.is_walkin %}
+              <span style="display:inline-flex;align-items:center;gap:.25rem;font-size:.68rem;font-weight:700;
+                           background:#f3f0ff;color:#7c3aed;border:1px solid #ddd6fe;
+                           border-radius:20px;padding:.1rem .5rem;margin-left:.4rem;vertical-align:middle;">
+                <i class="bi bi-person-walking"></i>Walk-in
+              </span>
+              {% endif %}
             </td>
             <td>
               <span class="d-inline-flex align-items-center gap-1" style="font-size:.85rem;">
@@ -224,9 +238,36 @@
 <script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
 <script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
 <script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
+
+<!-- ── Toast container ─────────────────────────────────────────── -->
+<div id="toastStack" aria-live="polite" aria-atomic="true"
+     style="position:fixed;bottom:1.5rem;right:1.5rem;z-index:9999;display:flex;flex-direction:column;gap:.5rem;"></div>
+
 <script>
+// ── Toast helper ──────────────────────────────────────────────────
+function showToast(msg, type = 'success') {
+  const colors = { success: '#16a34a', error: '#dc2626', info: '#0038A8' };
+  const icons  = { success: 'bi-check-circle-fill', error: 'bi-x-circle-fill', info: 'bi-info-circle-fill' };
+  const el = document.createElement('div');
+  el.style.cssText = `background:#fff;border-radius:12px;padding:.75rem 1.1rem;
+    box-shadow:0 4px 20px rgba(0,0,0,.14);display:flex;align-items:center;gap:.65rem;
+    font-size:.84rem;font-weight:600;min-width:260px;max-width:360px;
+    border-left:4px solid ${colors[type]};animation:slideUp .2s ease;`;
+  el.innerHTML = `<i class="bi ${icons[type]}" style="color:${colors[type]};font-size:1rem;flex-shrink:0;"></i>
+    <span style="color:#1e293b;flex:1;">${msg}</span>
+    <button onclick="this.closest('div').remove()" style="background:none;border:none;cursor:pointer;color:#94a3b8;padding:0;font-size:1rem;">×</button>`;
+  document.getElementById('toastStack').appendChild(el);
+  setTimeout(() => el.style.opacity = '0', 3800);
+  setTimeout(() => el.remove(), 4000);
+}
+const slideUpStyle = document.createElement('style');
+slideUpStyle.textContent = '@keyframes slideUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}';
+document.head.appendChild(slideUpStyle);
+
+// ── DataTable ─────────────────────────────────────────────────────
+let appTable;
 $(document).ready(function () {
-  $('#appTable').DataTable({
+  appTable = $('#appTable').DataTable({
     dom: "<'dt-top'lf><'dt-buttons mb-2'B><'table-responsive'tr><'dt-bottom'ip>",
     pageLength: 10,
     lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, 'All']],
@@ -238,40 +279,57 @@ $(document).ready(function () {
     ],
     language: {
       emptyTable: 'No applications found.',
-      search: '',
-      searchPlaceholder: 'Search applications…',
+      search: '', searchPlaceholder: 'Search applications…',
       lengthMenu: 'Show _MENU_',
       info: 'Showing _START_–_END_ of _TOTAL_ applications',
       paginate: { previous: '‹', next: '›' },
     },
   });
+
+  // Auto-apply filter from URL param (e.g. dashboard cards link ?status=pending)
+  const urlStatus = new URLSearchParams(window.location.search).get('status');
+  if (urlStatus) {
+    const pill = document.querySelector(`.filter-pill[data-filter="${urlStatus}"]`);
+    if (pill) filterApps(pill, urlStatus);
+  }
 });
 
-// ── Allocate modal ──────────────────────────────────────────────
+// ── Client-side status filter ─────────────────────────────────────
+function filterApps(pill, status) {
+  document.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
+  pill.classList.add('active');
+  // Search in status column (index 4); case-insensitive, not regex, not smart
+  appTable.column(4).search(status, false, false, true).draw();
+}
+
+// ── Open allocate modal ───────────────────────────────────────────
 function openAllocateModal(btn) {
   const appId   = btn.dataset.appId;
   const appName = btn.dataset.appName;
 
-  document.getElementById('allocateApplicantName').textContent = appName;
-  document.getElementById('allocateForm').action = `/applications/${appId}/allocate/`;
-
-  // Reset selects
+  const form      = document.getElementById('allocateForm');
   const siteSelect  = document.getElementById('sendingAreaSelect');
   const houseSelect = document.getElementById('houseSelect');
   const submitBtn   = document.getElementById('allocateSubmitBtn');
 
+  form.action       = `/applications/${appId}/allocate/`;
+  form.dataset.appId = appId;
+  document.getElementById('allocateApplicantName').textContent = appName;
+
   siteSelect.value = '';
   houseSelect.innerHTML = '<option value="">— Select sending area first —</option>';
-  houseSelect.disabled = true;
+  houseSelect.disabled  = true;
   document.getElementById('allocateHouseId').value = '';
   document.getElementById('noHousesMsg').classList.add('d-none');
   submitBtn.disabled = true;
+  submitBtn.innerHTML = '<i class="bi bi-house-check me-1"></i>Confirm Allocation';
 
   new bootstrap.Modal(document.getElementById('allocateModal')).show();
 }
 
+// ── Sending area → load houses ────────────────────────────────────
 document.getElementById('sendingAreaSelect')?.addEventListener('change', function () {
-  const siteNumber = this.value;
+  const siteNumber  = this.value;
   const houseSelect = document.getElementById('houseSelect');
   const spinner     = document.getElementById('houseLoadingSpinner');
   const noMsg       = document.getElementById('noHousesMsg');
@@ -279,39 +337,74 @@ document.getElementById('sendingAreaSelect')?.addEventListener('change', functio
   const hiddenId    = document.getElementById('allocateHouseId');
 
   houseSelect.innerHTML = '<option value="">— Select a house —</option>';
-  houseSelect.disabled = true;
-  hiddenId.value = '';
-  submitBtn.disabled = true;
+  houseSelect.disabled  = true;
+  hiddenId.value        = '';
+  submitBtn.disabled    = true;
   noMsg.classList.add('d-none');
 
   if (!siteNumber) return;
-
   spinner.classList.remove('d-none');
 
   fetch(`/api/houses/by-site/${siteNumber}/`)
     .then(r => r.json())
     .then(data => {
       spinner.classList.add('d-none');
-      if (!data.houses.length) {
-        noMsg.classList.remove('d-none');
-        return;
-      }
+      if (!data.houses.length) { noMsg.classList.remove('d-none'); return; }
       data.houses.forEach(h => {
         const opt = document.createElement('option');
-        opt.value = h.id;
-        opt.textContent = h.house_number;
+        opt.value = h.id; opt.textContent = h.house_number;
         houseSelect.appendChild(opt);
       });
       houseSelect.disabled = false;
     })
-    .catch(() => { spinner.classList.add('d-none'); });
+    .catch(() => spinner.classList.add('d-none'));
 });
 
 document.getElementById('houseSelect')?.addEventListener('change', function () {
-  const hiddenId  = document.getElementById('allocateHouseId');
+  document.getElementById('allocateHouseId').value = this.value;
+  document.getElementById('allocateSubmitBtn').disabled = !this.value;
+});
+
+// ── AJAX allocate submit ──────────────────────────────────────────
+document.getElementById('allocateForm')?.addEventListener('submit', function (e) {
+  e.preventDefault();
+  const form      = this;
+  const appId     = form.dataset.appId;
   const submitBtn = document.getElementById('allocateSubmitBtn');
-  hiddenId.value      = this.value;
-  submitBtn.disabled  = !this.value;
+
+  submitBtn.disabled = true;
+  submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Processing…';
+
+  fetch(form.action, {
+    method: 'POST',
+    body: new FormData(form),
+    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+  })
+    .then(r => r.json())
+    .then(data => {
+      if (data.ok) {
+        bootstrap.Modal.getInstance(document.getElementById('allocateModal'))?.hide();
+
+        // Swap the "Allocate" button row → "Housed" badge in-place
+        const triggerBtn = document.querySelector(`.btn-allocate[data-app-id="${data.app_id}"]`);
+        if (triggerBtn) {
+          const cell = triggerBtn.closest('.d-flex');
+          triggerBtn.outerHTML = `<span class="badge-housed" title="House allocated">
+            <i class="bi bi-house-check" style="font-size:.72rem;"></i> Housed</span>`;
+        }
+
+        showToast(`House <strong>${data.house_number}</strong> allocated to ${data.applicant_name}`);
+      } else {
+        showToast(data.error || 'Allocation failed.', 'error');
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="bi bi-house-check me-1"></i>Confirm Allocation';
+      }
+    })
+    .catch(() => {
+      showToast('Network error. Please try again.', 'error');
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = '<i class="bi bi-house-check me-1"></i>Confirm Allocation';
+    });
 });
 </script>
 {% endblock %}

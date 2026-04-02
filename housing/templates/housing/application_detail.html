@@ -261,6 +261,59 @@
         <i class="bi bi-clipboard-check"></i>Review Decision
       </div>
       <div class="card-body">
+
+        {% if application.status == 'approved' %}
+        <!-- ── Approved: form locked ── -->
+        <div class="alert alert-success d-flex align-items-center gap-2 mb-3" style="border-radius:10px;">
+          <i class="bi bi-check-circle-fill fs-5"></i>
+          <div>
+            <div class="fw-semibold">Application Approved</div>
+            <div class="small">This application has already been approved and cannot be changed.</div>
+          </div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-medium small">Decision</label>
+          <select class="form-select" disabled>
+            <option selected>Approved</option>
+          </select>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-medium small">Notes</label>
+          <textarea class="form-control" rows="4" disabled>{{ application.notes }}</textarea>
+        </div>
+        <div class="d-grid">
+          <button type="button" class="btn btn-success" disabled style="border-radius:10px;">
+            <i class="bi bi-check-circle me-2"></i>Already Approved
+          </button>
+        </div>
+
+        {% elif application.status == 'rejected' %}
+        <!-- ── Rejected: form locked ── -->
+        <div class="alert alert-secondary d-flex align-items-center gap-2 mb-3" style="border-radius:10px;">
+          <i class="bi bi-x-circle-fill fs-5"></i>
+          <div>
+            <div class="fw-semibold">Application Rejected</div>
+            <div class="small">This application has been rejected and cannot be changed.</div>
+          </div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-medium small">Decision</label>
+          <select class="form-select" disabled>
+            <option selected>Rejected</option>
+          </select>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-medium small">Notes</label>
+          <textarea class="form-control" rows="4" disabled>{{ application.notes }}</textarea>
+        </div>
+        <div class="d-grid">
+          <button type="button" class="btn btn-secondary" disabled style="border-radius:10px;">
+            <i class="bi bi-x-circle me-2"></i>Already Rejected
+          </button>
+        </div>
+
+        {% else %}
+        <!-- ── Pending: editable form ── -->
         <form method="post">
           {% csrf_token %}
           {% for field in form %}
@@ -289,6 +342,8 @@
             </button>
           </div>
         </form>
+        {% endif %}
+
       </div>
     </div>
   </div>

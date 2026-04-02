@@ -107,7 +107,8 @@
               <label class="form-label fw-medium small">{{ f.label }}</label>
               <input type="date" name="{{ f.html_name }}" id="{{ f.id_for_label }}"
                      class="form-control{% if f.errors %} is-invalid{% endif %}"
-                     value="{{ f.value|default:'' }}">
+                     value="{{ f.value|default:'' }}"
+                     min="1900-01-01" max="{% now 'Y-m-d' %}">
               {% for e in f.errors %}<div class="invalid-feedback">{{ e }}</div>{% endfor %}
               {% endwith %}
             </div>
@@ -301,7 +302,8 @@
                   <label class="form-label fw-medium small">{{ f.label }}</label>
                   <input type="date" name="{{ f.html_name }}" id="{{ f.id_for_label }}"
                          class="form-control{% if f.errors %} is-invalid{% endif %}"
-                         value="{{ f.value|default:'' }}">
+                         value="{{ f.value|default:'' }}"
+                         min="1900-01-01" max="{% now 'Y-m-d' %}">
                   {% for e in f.errors %}<div class="invalid-feedback">{{ e }}</div>{% endfor %}
                   {% endwith %}
                 </div>
@@ -463,12 +465,15 @@
               {% with f=form.contact_no %}
               <label class="form-label fw-medium small">{{ f.label }}</label>
               <div class="input-group">
-                <span class="input-group-text"><i class="bi bi-phone"></i></span>
+                <span class="input-group-text fw-semibold"
+                      style="color:#0038A8; background:#eff6ff; border-color:#bfdbfe; font-size:.85rem;">+63</span>
                 <input type="tel" name="{{ f.html_name }}" id="{{ f.id_for_label }}"
                        class="form-control{% if f.errors %} is-invalid{% endif %}"
-                       value="{{ f.value|default:'' }}" placeholder="09XX-XXX-XXXX">
+                       value="{{ f.value|default:'' }}"
+                       placeholder="9XX XXX XXXX"
+                       maxlength="10">
               </div>
-              {% for e in f.errors %}<div class="invalid-feedback">{{ e }}</div>{% endfor %}
+              {% for e in f.errors %}<div class="invalid-feedback d-block">{{ e }}</div>{% endfor %}
               {% endwith %}
             </div>
 
@@ -771,7 +776,7 @@ function buildMemberRow(idx) {
       </div>
       <div class="col-sm-2">
         <label class="form-label fw-medium small">Birthdate</label>
-        <input type="date" name="member_bdate_${idx}" class="form-control form-control-sm">
+        <input type="date" name="member_bdate_${idx}" class="form-control form-control-sm" min="1900-01-01" max="${new Date().toISOString().slice(0,10)}">
       </div>
     </div>
     <div class="member-status"></div>`;

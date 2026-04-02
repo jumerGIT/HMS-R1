@@ -599,7 +599,12 @@
           </li>
           <li class="nav-item">
             <a class="nav-link {% if request.resolver_match.url_name == 'user_management' %}active{% endif %}" href="{% url 'user_management' %}">
-              <i class="bi bi-shield-person"></i>Users
+              <i class="bi bi-person-badge"></i>Users
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link {% if request.resolver_match.url_name == 'activity_log' %}active{% endif %}" href="{% url 'activity_log' %}">
+              <i class="bi bi-journal-text"></i>Activity Log
             </a>
           </li>
 

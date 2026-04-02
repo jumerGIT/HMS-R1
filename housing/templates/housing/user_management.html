@@ -139,7 +139,12 @@
             </div>
             <div class="col-12">
               <label class="form-label small fw-semibold">Phone</label>
-              <input type="text" class="form-control form-control-sm" id="c_phone">
+              <div class="input-group input-group-sm">
+                <span class="input-group-text fw-semibold"
+                      style="color:#0038A8; background:#eff6ff; border-color:#bfdbfe; font-size:.8rem;">+63</span>
+                <input type="tel" class="form-control form-control-sm" id="c_phone"
+                       placeholder="9XX XXX XXXX" maxlength="10">
+              </div>
             </div>
             <div class="col-12">
               <label class="form-label small fw-semibold">Role <span class="text-danger">*</span></label>
@@ -224,7 +229,12 @@
           </div>
           <div class="col-12">
             <label class="form-label small fw-semibold">Phone</label>
-            <input type="text" class="form-control form-control-sm" id="e_phone">
+            <div class="input-group input-group-sm">
+              <span class="input-group-text fw-semibold"
+                    style="color:#0038A8; background:#eff6ff; border-color:#bfdbfe; font-size:.8rem;">+63</span>
+              <input type="tel" class="form-control form-control-sm" id="e_phone"
+                     placeholder="9XX XXX XXXX" maxlength="10">
+            </div>
           </div>
           <div class="col-12">
             <label class="form-label small fw-semibold">Role <span class="text-danger">*</span></label>
@@ -439,7 +449,8 @@ function openEdit(pk) {
   document.getElementById('e_first_name').value = row.dataset.first;
   document.getElementById('e_last_name').value  = row.dataset.last;
   document.getElementById('e_email').value      = row.dataset.email;
-  document.getElementById('e_phone').value      = row.dataset.phone;
+  var rawPhone = row.dataset.phone || '';
+  document.getElementById('e_phone').value = rawPhone.startsWith('+63') ? rawPhone.slice(3) : rawPhone;
   document.getElementById('e_role').value       = row.dataset.role;
   document.getElementById('e_password').value   = '';
   document.getElementById('e_password2').value  = '';

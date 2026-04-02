@@ -28,9 +28,11 @@ urlpatterns = [
 
     # Applications (Beneficiary Incharge + Admin)
     path('applications/', views.application_list, name='application_list'),
+    path('applications/walkin/', views.walkin_application, name='walkin_application'),
     path('applications/<uuid:pk>/', views.application_detail, name='application_detail'),
     path('applications/<uuid:pk>/allocate/', views.allocate_house, name='allocate_house'),
     path('api/houses/by-site/<int:site_number>/', views.houses_by_site, name='houses_by_site'),
+    path('api/stats/', views.api_dashboard_stats, name='api_dashboard_stats'),
 
     # Applicant views
     path('my-application/', views.my_application, name='my_application'),
@@ -47,4 +49,7 @@ urlpatterns = [
     path('users/<uuid:pk>/toggle/', views.toggle_user_active, name='toggle_user_active'),
     path('users/<uuid:pk>/edit/', views.update_user, name='update_user'),
     path('users/<uuid:pk>/delete/', views.delete_user, name='delete_user'),
+
+    # Activity log (admin only)
+    path('activity-log/', views.activity_log_view, name='activity_log'),
 ]

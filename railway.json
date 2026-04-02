@@ -4,6 +4,8 @@
   },
   "deploy": {
     "startCommand": "gunicorn hms_project.wsgi --log-file -",
-    "healthcheckPath": "/admin/"
+    "releaseCommand": "python manage.py migrate --noinput && python manage.py collectstatic --noinput",
+    "healthcheckPath": "/login/",
+    "healthcheckTimeout": 30
   }
 }

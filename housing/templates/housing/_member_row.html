@@ -38,7 +38,8 @@
     <div class="col-sm-2">
       <label class="form-label fw-medium small">Birthdate</label>
       <input type="date" name="member_bdate_{{ idx }}" class="form-control form-control-sm"
-             value="{% if member and member.bdate %}{{ member.bdate|date:'Y-m-d' }}{% endif %}">
+             value="{% if member and member.bdate %}{{ member.bdate|date:'Y-m-d' }}{% endif %}"
+             min="1900-01-01" max="{% now 'Y-m-d' %}">
     </div>
   </div>
   <div class="member-status"></div>

@@ -19,7 +19,7 @@ from rest_framework.views import APIView
 from rest_framework.authtoken.views import ObtainAuthToken
 from rest_framework.authtoken.models import Token
 
-from .models import CustomUser, House, Application, AllocationHistory
+from .models import ActivityLog, CustomUser, House, Application, AllocationHistory
 from .permissions import (
     IsAdminRole, IsHousingIncharge, IsBeneficiaryIncharge, IsApplicant
 )
@@ -211,6 +211,18 @@ class AllocateView(APIView):
             house=house,
             beneficiary=applicant,
             allocated_by=request.user,
+        )
+
+        x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+        ip = x_forwarded_for.split(',')[0].strip() if x_forwarded_for else request.META.get('REMOTE_ADDR')
+        ActivityLog.objects.create(
+            user=request.user,
+            action='allocate_house',
+            description=(
+                f'House "{house.house_number}" (Site {house.site}) allocated to '
+                f'"{applicant.get_full_name() or applicant.username}" via Map.'
+            ),
+            ip_address=ip,
         )
 
         return Response(

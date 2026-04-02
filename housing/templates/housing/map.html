@@ -2,55 +2,71 @@
 {% block title %}Village Map – HMS{% endblock %}
 
 {% block extra_head %}
+<meta name="referrer" content="origin">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.min.css"/>
 <style>
-.map-wrap {
-  position: relative;
+/* ── Leaflet map containers ─────────────────────────────────────────────────── */
+#map-site1, #map-site2 {
   width: 100%;
-  background: #f8fafc;
+  height: 640px;
   border-radius: 0 0 8px 8px;
-  overflow: hidden;
-  touch-action: none;
-  user-select: none;
 }
-.map-wrap svg {
-  width: 100%;
-  display: block;
-  cursor: grab;
+#calib-panel-2 {
+  position: absolute; bottom: 50px; left: 10px; z-index: 1000;
+  background: rgba(255,255,255,.97); border: 1px solid #cbd5e1; border-radius: 8px;
+  padding: 10px 13px; font-size: 11.5px; max-width: 250px;
+  box-shadow: 0 3px 10px rgba(0,0,0,.18);
 }
-.map-wrap svg.panning { cursor: grabbing; }
+#calib-panel-2 code {
+  font-size: 11px; background: #f1f5f9; padding: 1px 4px; border-radius: 3px;
+}
 
-/* Zoom toolbar */
-.zoom-toolbar {
-  position: absolute;
-  bottom: 14px;
-  right: 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  z-index: 10;
-}
-.zoom-btn {
-  width: 34px; height: 34px;
-  border-radius: 8px;
-  border: 1px solid #cbd5e1;
-  background: #fff;
-  color: #334155;
-  font-size: 1.1rem;
-  font-weight: 700;
-  cursor: pointer;
-  display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 1px 4px rgba(0,0,0,.12);
-  transition: background .15s;
-}
-.zoom-btn:hover { background: #f1f5f9; }
-.zoom-btn:active { background: #e2e8f0; }
 
+/* House paths (both sites) */
 .house-path {
   cursor: pointer;
   opacity: 0.82;
   transition: opacity 0.1s;
 }
 .house-path:hover { opacity: 1; stroke: #fff; stroke-width: 1.5px; }
+
+/* ── Calibration panel ─────────────────────────────────────────────────────── */
+.leaflet-calib-btn {
+  width: 30px !important;
+  height: 30px !important;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  cursor: pointer;
+  text-decoration: none !important;
+  color: #333 !important;
+  line-height: 1;
+}
+.leaflet-calib-btn.active {
+  background: #dbeafe !important;
+  color: #2563eb !important;
+}
+#calib-panel {
+  position: absolute;
+  bottom: 50px;
+  left: 10px;
+  z-index: 1000;
+  background: rgba(255,255,255,.97);
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 10px 13px;
+  font-size: 11.5px;
+  max-width: 250px;
+  box-shadow: 0 3px 10px rgba(0,0,0,.18);
+  display: none;
+}
+#calib-panel code {
+  font-size: 11px;
+  background: #f1f5f9;
+  padding: 1px 4px;
+  border-radius: 3px;
+}
 </style>
 {% endblock %}
 
@@ -83,10 +99,34 @@
 
   <div class="tab-content border border-top-0 rounded-bottom bg-white">
 
-    <!-- ===== SITE 1 ===== -->
-    <div class="tab-pane fade show active" id="site1" role="tabpanel">
-      <div class="map-wrap" style="height:640px;">
-        <svg id="svg-site1" viewBox="0 0 560 570"
+    <!-- ===== SITE 1 (Leaflet + OpenStreetMap) ===== -->
+    <div class="tab-pane fade show active" id="site1" role="tabpanel" style="position:relative;">
+      <!-- Leaflet map -->
+      <div id="map-site1"></div>
+      <!-- Calibration panel (toggle button is added as a Leaflet control in JS) -->
+      <div id="calib-panel">
+        <strong style="font-size:12px;">⚙ SVG Calibration</strong>
+        <div style="font-size:10px;color:#64748b;margin-top:3px;">
+          Drag <span style="color:#2563eb;font-weight:700;">● corners</span> to resize ·
+          drag <span style="color:#7c3aed;font-weight:700;">✥ center</span> to move
+        </div>
+        <hr style="margin:6px 0;border-color:#e2e8f0;">
+        <div style="font-size:10px;color:#475569;margin-bottom:3px;">SITE1_BOUNDS value:</div>
+        <code id="calib-output" style="font-size:9px;display:block;background:#f1f5f9;padding:5px;border-radius:3px;word-break:break-all;line-height:1.5;white-space:pre-wrap;"></code>
+        <button id="calib-copy-btn" style="margin-top:5px;width:100%;font-size:10px;padding:3px 0;border:1px solid #cbd5e1;border-radius:4px;background:#f8fafc;cursor:pointer;">Copy</button>
+        <hr style="margin:7px 0;border-color:#e2e8f0;">
+        <div style="font-size:10px;color:#475569;margin-bottom:4px;">
+          Drag <span style="color:#16a34a;font-weight:700;">↻ handle</span> to rotate · or type angle:
+        </div>
+        <div style="display:flex;align-items:center;gap:5px;">
+          <input type="range" id="calib-rot-1" min="-180" max="180" value="0" step="0.5" style="flex:1;cursor:pointer;accent-color:#16a34a;">
+          <input type="number" id="calib-rot-num-1" value="0" min="-180" max="180" step="0.5" style="width:50px;font-size:10px;padding:2px 4px;border:1px solid #cbd5e1;border-radius:3px;text-align:right;">
+          <span style="font-size:10px;color:#64748b;">°</span>
+        </div>
+      </div>
+      <!-- Site 1 SVG kept hidden here; L.svgOverlay will move it into the map -->
+      <div id="svg-site1-holder" style="display:none;">
+        <svg id="svg-site1" viewBox="0 0 560 570" overflow="visible"
              xmlns="http://www.w3.org/2000/svg"
              xmlns:xlink="http://www.w3.org/1999/xlink">
 
@@ -240,19 +280,35 @@
           </g>
         </svg>
 
-        <!-- Zoom controls -->
-        <div class="zoom-toolbar" data-svg="svg-site1">
-          <button class="zoom-btn zoom-in"    title="Zoom in">+</button>
-          <button class="zoom-btn zoom-out"   title="Zoom out">−</button>
-          <button class="zoom-btn zoom-reset" title="Reset view" style="font-size:.75rem;">⊙</button>
-        </div>
-      </div>
-    </div>
+      </div><!-- /#svg-site1-holder -->
+    </div><!-- /#site1 tab-pane -->
 
     <!-- ===== SITE 2 ===== -->
-    <div class="tab-pane fade" id="site2" role="tabpanel">
-      <div class="map-wrap" style="height:640px;">
-        <svg id="svg-site2" viewBox="0 0 545 565"
+    <!-- ===== SITE 2 (Leaflet + OpenStreetMap) ===== -->
+    <div class="tab-pane fade" id="site2" role="tabpanel" style="position:relative;">
+      <div id="map-site2"></div>
+      <div id="calib-panel-2" style="display:none;">
+        <strong style="font-size:12px;">⚙ SVG Calibration</strong>
+        <div style="font-size:10px;color:#64748b;margin-top:3px;">
+          Drag <span style="color:#2563eb;font-weight:700;">● corners</span> to resize ·
+          drag <span style="color:#7c3aed;font-weight:700;">✥ center</span> to move
+        </div>
+        <hr style="margin:6px 0;border-color:#e2e8f0;">
+        <div style="font-size:10px;color:#475569;margin-bottom:3px;">SITE2_BOUNDS value:</div>
+        <code id="calib-output-2" style="font-size:9px;display:block;background:#f1f5f9;padding:5px;border-radius:3px;word-break:break-all;line-height:1.5;white-space:pre-wrap;"></code>
+        <button id="calib-copy-btn-2" style="margin-top:5px;width:100%;font-size:10px;padding:3px 0;border:1px solid #cbd5e1;border-radius:4px;background:#f8fafc;cursor:pointer;">Copy</button>
+        <hr style="margin:7px 0;border-color:#e2e8f0;">
+        <div style="font-size:10px;color:#475569;margin-bottom:4px;">
+          Drag <span style="color:#16a34a;font-weight:700;">↻ handle</span> to rotate · or type angle:
+        </div>
+        <div style="display:flex;align-items:center;gap:5px;">
+          <input type="range" id="calib-rot-2" min="-180" max="180" value="0" step="0.5" style="flex:1;cursor:pointer;accent-color:#16a34a;">
+          <input type="number" id="calib-rot-num-2" value="0" min="-180" max="180" step="0.5" style="width:50px;font-size:10px;padding:2px 4px;border:1px solid #cbd5e1;border-radius:3px;text-align:right;">
+          <span style="font-size:10px;color:#64748b;">°</span>
+        </div>
+      </div>
+      <div id="svg-site2-holder" style="display:none;">
+        <svg id="svg-site2" viewBox="0 0 545 565" overflow="visible"
              xmlns="http://www.w3.org/2000/svg">
 
           <!-- Background -->
@@ -328,14 +384,8 @@
           </g>
         </svg>
 
-        <!-- Zoom controls -->
-        <div class="zoom-toolbar" data-svg="svg-site2">
-          <button class="zoom-btn zoom-in"    title="Zoom in">+</button>
-          <button class="zoom-btn zoom-out"   title="Zoom out">−</button>
-          <button class="zoom-btn zoom-reset" title="Reset view" style="font-size:.75rem;">⊙</button>
-        </div>
-      </div>
-    </div>
+      </div><!-- /#svg-site2-holder -->
+    </div><!-- /#site2 tab-pane -->
 
   </div><!-- end tab-content -->
 </div>
@@ -356,7 +406,19 @@
     </div>
   </div>
 </div>
+<!-- Toast notification -->
+<div class="position-fixed top-0 end-0 p-3" style="z-index:9999;">
+  <div id="mapToast" class="toast align-items-center border-0 shadow" role="alert" aria-live="assertive" data-bs-delay="4000">
+    <div class="d-flex">
+      <div class="toast-body fw-semibold" id="mapToastMsg"></div>
+      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+    </div>
+  </div>
+</div>
+{% endblock %}{# /block content #}
 
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.min.js"></script>
 <script>
 const canAllocate = {{ can_allocate|yesno:"true,false" }};
 
@@ -365,201 +427,404 @@ function getCsrf() {
   return m ? m[1] : '';
 }
 
-// ── SvgPanZoom ────────────────────────────────────────────────────────────────
-class SvgPanZoom {
-  constructor(svgEl, opts) {
-    opts = opts || {};
-    this.svg        = svgEl;
-    this.minScale   = opts.minScale   || 0.5;
-    this.maxScale   = opts.maxScale   || 12;
-    this.zoomStep   = opts.zoomStep   || 0.15;
+// ── Rotation helpers ─────────────────────────────────────────────────────────
+function makeRotatable(svgEl, viewW, viewH) {
+  var ns = 'http://www.w3.org/2000/svg';
+  var g  = document.createElementNS(ns, 'g');
+  while (svgEl.firstChild) { g.appendChild(svgEl.firstChild); }
+  svgEl.appendChild(g);
+  return { g: g, cx: viewW / 2, cy: viewH / 2, angle: 0 };
+}
+function applyRotation(rot) {
+  rot.g.setAttribute('transform',
+    'rotate(' + rot.angle.toFixed(2) + ' ' + rot.cx + ' ' + rot.cy + ')');
+}
+// Returns the lat/lng position for the rotation drag handle (green dot above center)
+function rotHandleLatLng(map, overlay) {
+  var b  = overlay.getBounds();
+  var c  = map.latLngToContainerPoint(b.getCenter());
+  var n  = map.latLngToContainerPoint(L.latLng(b.getNorth(), b.getCenter().lng));
+  var r  = Math.max(Math.abs(n.y - c.y) * 1.25, 30); // pixel radius
+  var rot = overlay._rot || 0;
+  var rad = rot * Math.PI / 180;
+  return map.containerPointToLatLng(L.point(
+    c.x + r * Math.sin(rad),
+    c.y - r * Math.cos(rad)
+  ));
+}
+function buildRotHandle(map, overlay, rot, sliderId, numId) {
+  var rotIcon = L.divIcon({
+    className: '',
+    html: '<div style="width:14px;height:14px;background:#16a34a;border:2.5px solid #fff;border-radius:50%;box-shadow:0 1px 5px rgba(0,0,0,.5);cursor:grab;font-size:9px;display:flex;align-items:center;justify-content:center;color:#fff;">↻</div>',
+    iconSize: [14, 14], iconAnchor: [7, 7],
+  });
+  overlay._rot = 0;
+  var hRot = L.marker(rotHandleLatLng(map, overlay), {
+    draggable: true, icon: rotIcon, zIndexOffset: 1100, opacity: 0,
+  }).addTo(map);
 
-    var vb      = svgEl.viewBox.baseVal;
-    this.origX  = vb.x;
-    this.origY  = vb.y;
-    this.origW  = vb.width;
-    this.origH  = vb.height;
-    this.vx     = vb.x;
-    this.vy     = vb.y;
-    this.vw     = vb.width;
-    this.vh     = vb.height;
-    this.ratio  = vb.height / vb.width;
-
-    this.panning   = false;
-    this.wasDragged = false;
-    this._lx = 0; this._ly = 0;
-    this._dragDist = 0;
-
-    // touch pinch state
-    this._t0 = null; this._t1 = null;
-    this._pinchDist = 0;
-    this._pinchVx = 0; this._pinchVy = 0;
-    this._pinchVw = 0; this._pinchVh = 0;
-    this._pinchMidSvg = null;
-
-    this._bind();
+  function syncUI(angle) {
+    document.getElementById(sliderId).value = angle;
+    document.getElementById(numId).value    = angle.toFixed(1);
   }
 
-  _bind() {
-    var s = this.svg;
-    s.style.cursor = 'grab';
-    s.addEventListener('wheel',      this._wheel.bind(this),      { passive: false });
-    s.addEventListener('mousedown',  this._mdown.bind(this));
-    s.addEventListener('mousemove',  this._mmove.bind(this));
-    s.addEventListener('mouseup',    this._mup.bind(this));
-    s.addEventListener('mouseleave', this._mup.bind(this));
-    s.addEventListener('touchstart', this._tstart.bind(this),     { passive: false });
-    s.addEventListener('touchmove',  this._tmove.bind(this),      { passive: false });
-    s.addEventListener('touchend',   this._tend.bind(this));
-  }
+  hRot.on('drag', function (e) {
+    var b   = overlay.getBounds();
+    var cPx = map.latLngToContainerPoint(b.getCenter());
+    var hPx = map.latLngToContainerPoint(e.latlng);
+    var angle = Math.atan2(hPx.x - cPx.x, -(hPx.y - cPx.y)) * 180 / Math.PI;
+    overlay._rot = angle;
+    rot.angle    = angle;
+    applyRotation(rot);
+    syncUI(angle);
+  });
 
-  _apply(x, y, w, h) {
-    var minW = this.origW / this.maxScale;
-    var maxW = this.origW / this.minScale;
-    if (w < minW) w = minW;
-    if (w > maxW) w = maxW;
-    h = w * this.ratio;
-    this.vx = x; this.vy = y; this.vw = w; this.vh = h;
-    this.svg.setAttribute('viewBox', x + ' ' + y + ' ' + w + ' ' + h);
-  }
+  document.getElementById(sliderId).addEventListener('input', function () {
+    var angle = parseFloat(this.value);
+    overlay._rot = angle; rot.angle = angle;
+    applyRotation(rot);
+    syncUI(angle);
+    hRot.setLatLng(rotHandleLatLng(map, overlay));
+  });
+  document.getElementById(numId).addEventListener('change', function () {
+    var angle = parseFloat(this.value) || 0;
+    overlay._rot = angle; rot.angle = angle;
+    applyRotation(rot);
+    syncUI(angle);
+    hRot.setLatLng(rotHandleLatLng(map, overlay));
+  });
 
-  _svgPt(cx, cy) {
-    var r = this.svg.getBoundingClientRect();
-    return {
-      x: this.vx + (cx - r.left) / r.width  * this.vw,
-      y: this.vy + (cy - r.top)  / r.height * this.vh,
-    };
-  }
-
-  _wheel(e) {
-    e.preventDefault();
-    var f  = e.deltaY > 0 ? (1 + this.zoomStep) : (1 - this.zoomStep);
-    var pt = this._svgPt(e.clientX, e.clientY);
-    var nw = this.vw * f, nh = this.vh * f;
-    this._apply(
-      pt.x - (pt.x - this.vx) * (nw / this.vw),
-      pt.y - (pt.y - this.vy) * (nh / this.vh),
-      nw, nh
-    );
-  }
-
-  _mdown(e) {
-    if (e.button !== 0) return;
-    this.panning    = true;
-    this.wasDragged = false;
-    this._dragDist  = 0;
-    this._lx = e.clientX; this._ly = e.clientY;
-    this.svg.classList.add('panning');
-  }
-
-  _mmove(e) {
-    if (!this.panning) return;
-    var r  = this.svg.getBoundingClientRect();
-    var dx = (e.clientX - this._lx) / r.width  * this.vw;
-    var dy = (e.clientY - this._ly) / r.height * this.vh;
-    this._dragDist += Math.abs(e.clientX - this._lx) + Math.abs(e.clientY - this._ly);
-    if (this._dragDist > 4) this.wasDragged = true;
-    this._lx = e.clientX; this._ly = e.clientY;
-    this._apply(this.vx - dx, this.vy - dy, this.vw, this.vh);
-  }
-
-  _mup() {
-    this.panning = false;
-    this.svg.classList.remove('panning');
-  }
-
-  _dist(a, b) { return Math.hypot(b.clientX - a.clientX, b.clientY - a.clientY); }
-
-  _tstart(e) {
-    if (e.touches.length === 2) {
-      e.preventDefault();
-      var r = this.svg.getBoundingClientRect();
-      this._t0 = e.touches[0]; this._t1 = e.touches[1];
-      this._pinchDist = this._dist(this._t0, this._t1);
-      this._pinchVx = this.vx; this._pinchVy = this.vy;
-      this._pinchVw = this.vw; this._pinchVh = this.vh;
-      var mx = (this._t0.clientX + this._t1.clientX) / 2;
-      var my = (this._t0.clientY + this._t1.clientY) / 2;
-      this._pinchMidSvg = {
-        x: this.vx + (mx - r.left) / r.width  * this.vw,
-        y: this.vy + (my - r.top)  / r.height * this.vh,
-      };
-      this.panning = false;
-    } else if (e.touches.length === 1) {
-      this.panning    = true;
-      this.wasDragged = false;
-      this._dragDist  = 0;
-      this._lx = e.touches[0].clientX;
-      this._ly = e.touches[0].clientY;
-    }
-  }
-
-  _tmove(e) {
-    if (e.touches.length === 2 && this._pinchMidSvg) {
-      e.preventDefault();
-      var r     = this.svg.getBoundingClientRect();
-      var dist  = this._dist(e.touches[0], e.touches[1]);
-      var scale = this._pinchDist / dist;
-      var mx    = (e.touches[0].clientX + e.touches[1].clientX) / 2;
-      var my    = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-      var fx    = (mx - r.left) / r.width;
-      var fy    = (my - r.top)  / r.height;
-      var nw    = this._pinchVw * scale;
-      var nh    = this._pinchVh * scale;
-      this._apply(
-        this._pinchMidSvg.x - fx * nw,
-        this._pinchMidSvg.y - fy * nh,
-        nw, nh
-      );
-    } else if (e.touches.length === 1 && this.panning) {
-      e.preventDefault();
-      var r  = this.svg.getBoundingClientRect();
-      var dx = (e.touches[0].clientX - this._lx) / r.width  * this.vw;
-      var dy = (e.touches[0].clientY - this._ly) / r.height * this.vh;
-      this._dragDist += Math.abs(e.touches[0].clientX - this._lx) + Math.abs(e.touches[0].clientY - this._ly);
-      if (this._dragDist > 6) this.wasDragged = true;
-      this._lx = e.touches[0].clientX;
-      this._ly = e.touches[0].clientY;
-      this._apply(this.vx - dx, this.vy - dy, this.vw, this.vh);
-    }
-  }
-
-  _tend(e) {
-    if (e.touches.length < 2) this._pinchMidSvg = null;
-    if (e.touches.length === 0) this.panning = false;
-  }
-
-  zoom(factor) {
-    var cx = this.vx + this.vw / 2, cy = this.vy + this.vh / 2;
-    var nw = this.vw * factor;
-    this._apply(cx - nw / 2, cy - nw * this.ratio / 2, nw, nw * this.ratio);
-  }
-
-  reset() { this._apply(this.origX, this.origY, this.origW, this.origH); }
+  return hRot;
 }
 
-// Init both maps
-var pz = {
-  'svg-site1': new SvgPanZoom(document.getElementById('svg-site1')),
-  'svg-site2': new SvgPanZoom(document.getElementById('svg-site2')),
-};
+// ── Site 1: Leaflet + OpenStreetMap ──────────────────────────────────────────
+// SITE1_BOUNDS = [[south_lat, west_lng], [north_lat, east_lng]]
+// These are estimated from center 10.827517, 123.553443 (±~250 m).
+// Use the Calibration panel (⚙ button) to hover/click the real map and fine-tune.
+var SITE1_BOUNDS = [[10.826207, 123.552344], [10.828687, 123.554638]];
 
-// Wire toolbar buttons
-document.querySelectorAll('.zoom-toolbar').forEach(function(tb) {
-  var id = tb.dataset.svg;
-  tb.querySelector('.zoom-in').addEventListener('click',    function() { pz[id].zoom(0.75); });
-  tb.querySelector('.zoom-out').addEventListener('click',   function() { pz[id].zoom(1.35); });
-  tb.querySelector('.zoom-reset').addEventListener('click', function() { pz[id].reset(); });
+var map1 = L.map('map-site1', { zoomControl: true }).setView([10.827517, 123.553443], 17);
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+  maxZoom: 19
+}).addTo(map1);
+
+// Wrap SVG content so it can be rotated independently of the overlay bounds
+var svgSite1 = document.getElementById('svg-site1');
+var rot1 = makeRotatable(svgSite1, 560, 570);
+var site1LatLngBounds = L.latLngBounds(SITE1_BOUNDS);
+var svgOverlay1 = L.svgOverlay(svgSite1, site1LatLngBounds, {
+  opacity: 0.85,
+  interactive: true
+}).addTo(map1);
+
+map1.fitBounds(site1LatLngBounds);
+
+// ── SVG Overlay calibration handles ─────────────────────────────────────────
+(function () {
+  var panel    = document.getElementById('calib-panel');
+  var outputEl = document.getElementById('calib-output');
+  var copyBtn  = document.getElementById('calib-copy-btn');
+  var calibOn  = false;
+  var calibBtn = null; // set once L.control is added
+
+  // Custom icons
+  var cornerIcon = L.divIcon({
+    className: '',
+    html: '<div style="width:14px;height:14px;background:#2563eb;border:2.5px solid #fff;border-radius:50%;box-shadow:0 1px 5px rgba(0,0,0,.5);cursor:nwse-resize;"></div>',
+    iconSize: [14, 14], iconAnchor: [7, 7],
+  });
+  var centerIcon = L.divIcon({
+    className: '',
+    html: '<div style="width:20px;height:20px;background:#7c3aed;border:2.5px solid #fff;border-radius:50%;box-shadow:0 1px 5px rgba(0,0,0,.5);cursor:move;display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;line-height:1;">✥</div>',
+    iconSize: [20, 20], iconAnchor: [10, 10],
+  });
+
+  // Build handles (hidden initially)
+  var hSW = L.marker(SITE1_BOUNDS[0], { draggable: true, icon: cornerIcon, zIndexOffset: 900, opacity: 0 }).addTo(map1);
+  var hNE = L.marker(SITE1_BOUNDS[1], { draggable: true, icon: cornerIcon, zIndexOffset: 900, opacity: 0 }).addTo(map1);
+  var hNW = L.marker([SITE1_BOUNDS[1][0], SITE1_BOUNDS[0][1]], { draggable: true, icon: cornerIcon, zIndexOffset: 900, opacity: 0 }).addTo(map1);
+  var hSE = L.marker([SITE1_BOUNDS[0][0], SITE1_BOUNDS[1][1]], { draggable: true, icon: cornerIcon, zIndexOffset: 900, opacity: 0 }).addTo(map1);
+  var hC  = L.marker(site1LatLngBounds.getCenter(), { draggable: true, icon: centerIcon, zIndexOffset: 1000, opacity: 0 }).addTo(map1);
+
+  function getBounds() {
+    var s = hSW.getLatLng(), n = hNE.getLatLng();
+    return L.latLngBounds(s, n);
+  }
+
+  function syncHandles(bounds) {
+    var s = bounds.getSouth(), n = bounds.getNorth();
+    var w = bounds.getWest(),  e = bounds.getEast();
+    hSW.setLatLng([s, w]);
+    hNE.setLatLng([n, e]);
+    hNW.setLatLng([n, w]);
+    hSE.setLatLng([s, e]);
+    hC.setLatLng(bounds.getCenter());
+  }
+
+  function updateOverlay() {
+    var b = getBounds();
+    svgOverlay1.setBounds(b);
+    syncHandles(b);
+    refreshOutput(b);
+  }
+
+  function refreshOutput(b) {
+    var sw = b.getSouthWest(), ne = b.getNorthEast();
+    outputEl.textContent =
+      '[[' + sw.lat.toFixed(6) + ', ' + sw.lng.toFixed(6) + '],\n' +
+      ' [' + ne.lat.toFixed(6) + ', ' + ne.lng.toFixed(6) + ']]';
+  }
+  refreshOutput(site1LatLngBounds);
+
+  // Corner drags — each corner controls its own lat/lng independently
+  hSW.on('drag', function () {
+    var sw = hSW.getLatLng(), ne = hNE.getLatLng();
+    svgOverlay1.setBounds(L.latLngBounds(sw, ne));
+    hNW.setLatLng([ne.lat, sw.lng]);
+    hSE.setLatLng([sw.lat, ne.lng]);
+    hC.setLatLng(L.latLngBounds(sw, ne).getCenter());
+    refreshOutput(L.latLngBounds(sw, ne));
+  });
+  hNE.on('drag', function () {
+    var sw = hSW.getLatLng(), ne = hNE.getLatLng();
+    svgOverlay1.setBounds(L.latLngBounds(sw, ne));
+    hNW.setLatLng([ne.lat, sw.lng]);
+    hSE.setLatLng([sw.lat, ne.lng]);
+    hC.setLatLng(L.latLngBounds(sw, ne).getCenter());
+    refreshOutput(L.latLngBounds(sw, ne));
+  });
+  hNW.on('drag', function () {
+    var nw = hNW.getLatLng(), se = hSE.getLatLng();
+    hSW.setLatLng([se.lat, nw.lng]);
+    hNE.setLatLng([nw.lat, se.lng]);
+    updateOverlay();
+  });
+  hSE.on('drag', function () {
+    var nw = hNW.getLatLng(), se = hSE.getLatLng();
+    hSW.setLatLng([se.lat, nw.lng]);
+    hNE.setLatLng([nw.lat, se.lng]);
+    updateOverlay();
+  });
+
+  // Center drag — moves entire overlay preserving size
+  hC.on('drag', function (e) {
+    var b = svgOverlay1.getBounds();
+    var dLat = b.getNorth() - b.getSouth();
+    var dLng = b.getEast()  - b.getWest();
+    var c    = e.latlng;
+    var newB = L.latLngBounds(
+      [c.lat - dLat / 2, c.lng - dLng / 2],
+      [c.lat + dLat / 2, c.lng + dLng / 2]
+    );
+    svgOverlay1.setBounds(newB);
+    syncHandles(newB);
+    refreshOutput(newB);
+  });
+
+  // Toggle calibration mode
+  function setCalibMode(on) {
+    calibOn = on;
+    var opacity = on ? 1 : 0;
+    [hSW, hNE, hNW, hSE, hC].forEach(function (h) { h.setOpacity(opacity); });
+    if (hRot1) hRot1.setOpacity(opacity);
+    panel.style.display = on ? 'block' : 'none';
+    if (calibBtn) calibBtn.classList.toggle('active', on);
+  }
+
+  // Add the toggle as a Leaflet control FIRST — before whenReady — so it always renders
+  var hRot1 = null;
+  var calibCtrl1 = L.control({ position: 'topright' });
+  calibCtrl1.onAdd = function () {
+    var wrap = L.DomUtil.create('div', 'leaflet-bar');
+    calibBtn  = L.DomUtil.create('a', 'leaflet-calib-btn', wrap);
+    calibBtn.innerHTML = '⚙';
+    calibBtn.title     = 'SVG Calibration';
+    calibBtn.href      = '#';
+    L.DomEvent.on(calibBtn, 'click', function (e) {
+      L.DomEvent.stopPropagation(e);
+      L.DomEvent.preventDefault(e);
+      setCalibMode(!calibOn);
+    });
+    L.DomEvent.disableClickPropagation(wrap);
+    return wrap;
+  };
+  calibCtrl1.addTo(map1);
+
+  // Build rotation handle after a tick so the map container is fully painted
+  setTimeout(function () {
+    hRot1 = buildRotHandle(map1, svgOverlay1, rot1, 'calib-rot-1', 'calib-rot-num-1');
+    if (calibOn) hRot1.setOpacity(1);
+  }, 0);
+
+  copyBtn.addEventListener('click', function () {
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(outputEl.textContent);
+      copyBtn.textContent = 'Copied ✓';
+      setTimeout(function () { copyBtn.textContent = 'Copy'; }, 1800);
+    }
+  });
+}());
+
+// Re-render Leaflet when Site 1 tab becomes visible
+document.getElementById('site1-tab').addEventListener('shown.bs.tab', function () {
+  map1.invalidateSize();
 });
+
+// ── Site 2: Leaflet + OpenStreetMap (lazy-init on first tab show) ────────────
+var SITE2_BOUNDS = [[10.860216, 123.506294], [10.862230, 123.508686]];
+var map2 = null;
+var svgOverlay2 = null;
+
+function initMap2() {
+  if (map2) { map2.invalidateSize(); return; }
+
+  map2 = L.map('map-site2', { zoomControl: true }).setView([10.861165, 123.507188], 17);
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    maxZoom: 19
+  }).addTo(map2);
+
+  var svgSite2 = document.getElementById('svg-site2');
+  var rot2 = makeRotatable(svgSite2, 545, 565);
+  rot2.angle = -53.1;
+  applyRotation(rot2);
+  var site2LatLngBounds = L.latLngBounds(SITE2_BOUNDS);
+  svgOverlay2 = L.svgOverlay(svgSite2, site2LatLngBounds, {
+    opacity: 0.85,
+    interactive: true
+  }).addTo(map2);
+
+  map2.fitBounds(site2LatLngBounds);
+  initCalib2(rot2, site2LatLngBounds);
+}
+
+document.getElementById('site2-tab').addEventListener('shown.bs.tab', initMap2);
+
+// ── Site 2 calibration handles (called from initMap2) ────────────────────────
+function initCalib2(rot2, site2LatLngBounds) {
+  var panel    = document.getElementById('calib-panel-2');
+  var outputEl = document.getElementById('calib-output-2');
+  var copyBtn  = document.getElementById('calib-copy-btn-2');
+  var calibOn  = false;
+  var calibBtn = null; // set once L.control is added
+
+  var cornerIcon = L.divIcon({
+    className: '',
+    html: '<div style="width:14px;height:14px;background:#2563eb;border:2.5px solid #fff;border-radius:50%;box-shadow:0 1px 5px rgba(0,0,0,.5);cursor:nwse-resize;"></div>',
+    iconSize: [14, 14], iconAnchor: [7, 7],
+  });
+  var centerIcon = L.divIcon({
+    className: '',
+    html: '<div style="width:20px;height:20px;background:#7c3aed;border:2.5px solid #fff;border-radius:50%;box-shadow:0 1px 5px rgba(0,0,0,.5);cursor:move;display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;line-height:1;">✥</div>',
+    iconSize: [20, 20], iconAnchor: [10, 10],
+  });
+
+  var hSW = L.marker(SITE2_BOUNDS[0], { draggable: true, icon: cornerIcon, zIndexOffset: 900, opacity: 0 }).addTo(map2);
+  var hNE = L.marker(SITE2_BOUNDS[1], { draggable: true, icon: cornerIcon, zIndexOffset: 900, opacity: 0 }).addTo(map2);
+  var hNW = L.marker([SITE2_BOUNDS[1][0], SITE2_BOUNDS[0][1]], { draggable: true, icon: cornerIcon, zIndexOffset: 900, opacity: 0 }).addTo(map2);
+  var hSE = L.marker([SITE2_BOUNDS[0][0], SITE2_BOUNDS[1][1]], { draggable: true, icon: cornerIcon, zIndexOffset: 900, opacity: 0 }).addTo(map2);
+  var hC  = L.marker(site2LatLngBounds.getCenter(), { draggable: true, icon: centerIcon, zIndexOffset: 1000, opacity: 0 }).addTo(map2);
+
+  function syncHandles(b) {
+    hSW.setLatLng([b.getSouth(), b.getWest()]);
+    hNE.setLatLng([b.getNorth(), b.getEast()]);
+    hNW.setLatLng([b.getNorth(), b.getWest()]);
+    hSE.setLatLng([b.getSouth(), b.getEast()]);
+    hC.setLatLng(b.getCenter());
+  }
+
+  function refreshOutput(b) {
+    var sw = b.getSouthWest(), ne = b.getNorthEast();
+    outputEl.textContent =
+      '[[' + sw.lat.toFixed(6) + ', ' + sw.lng.toFixed(6) + '],\n' +
+      ' [' + ne.lat.toFixed(6) + ', ' + ne.lng.toFixed(6) + ']]';
+  }
+  refreshOutput(site2LatLngBounds);
+
+  function dragCorners() {
+    var sw = hSW.getLatLng(), ne = hNE.getLatLng();
+    var b = L.latLngBounds(sw, ne);
+    svgOverlay2.setBounds(b);
+    hNW.setLatLng([ne.lat, sw.lng]);
+    hSE.setLatLng([sw.lat, ne.lng]);
+    hC.setLatLng(b.getCenter());
+    refreshOutput(b);
+  }
+
+  hSW.on('drag', dragCorners);
+  hNE.on('drag', dragCorners);
+  hNW.on('drag', function () {
+    var nw = hNW.getLatLng(), se = hSE.getLatLng();
+    hSW.setLatLng([se.lat, nw.lng]); hNE.setLatLng([nw.lat, se.lng]);
+    dragCorners();
+  });
+  hSE.on('drag', function () {
+    var nw = hNW.getLatLng(), se = hSE.getLatLng();
+    hSW.setLatLng([se.lat, nw.lng]); hNE.setLatLng([nw.lat, se.lng]);
+    dragCorners();
+  });
+  hC.on('drag', function (e) {
+    var b = svgOverlay2.getBounds();
+    var dLat = b.getNorth() - b.getSouth(), dLng = b.getEast() - b.getWest();
+    var c = e.latlng;
+    var nb = L.latLngBounds([c.lat - dLat/2, c.lng - dLng/2], [c.lat + dLat/2, c.lng + dLng/2]);
+    svgOverlay2.setBounds(nb); syncHandles(nb); refreshOutput(nb);
+  });
+
+  function setCalibMode(on) {
+    calibOn = on;
+    var op = on ? 1 : 0;
+    [hSW, hNE, hNW, hSE, hC].forEach(function (h) { h.setOpacity(op); });
+    if (hRot2) hRot2.setOpacity(op);
+    panel.style.display = on ? 'block' : 'none';
+    if (calibBtn) calibBtn.classList.toggle('active', on);
+  }
+
+  // Add the toggle as a Leaflet control FIRST — before whenReady — so it always renders
+  var hRot2 = null;
+  var calibCtrl2 = L.control({ position: 'topright' });
+  calibCtrl2.onAdd = function () {
+    var wrap = L.DomUtil.create('div', 'leaflet-bar');
+    calibBtn  = L.DomUtil.create('a', 'leaflet-calib-btn', wrap);
+    calibBtn.innerHTML = '⚙';
+    calibBtn.title     = 'SVG Calibration';
+    calibBtn.href      = '#';
+    L.DomEvent.on(calibBtn, 'click', function (e) {
+      L.DomEvent.stopPropagation(e);
+      L.DomEvent.preventDefault(e);
+      setCalibMode(!calibOn);
+    });
+    L.DomEvent.disableClickPropagation(wrap);
+    return wrap;
+  };
+  calibCtrl2.addTo(map2);
+
+  // Sync slider/number inputs to the initial rotation
+  document.getElementById('calib-rot-2').value     = rot2.angle;
+  document.getElementById('calib-rot-num-2').value = rot2.angle.toFixed(1);
+  svgOverlay2._rot = rot2.angle;
+
+  // Build rotation handle after a tick so the map container is fully painted
+  setTimeout(function () {
+    hRot2 = buildRotHandle(map2, svgOverlay2, rot2, 'calib-rot-2', 'calib-rot-num-2');
+    if (calibOn) hRot2.setOpacity(1);
+  }, 0);
+
+  copyBtn.addEventListener('click', function () {
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(outputEl.textContent);
+      copyBtn.textContent = 'Copied ✓';
+      setTimeout(function () { copyBtn.textContent = 'Copy'; }, 1800);
+    }
+  });
+}
 
 // ── House click → modal ───────────────────────────────────────────────────────
 document.querySelectorAll('.house-path').forEach(function(path) {
   path.addEventListener('click', function() {
-    // Don't fire modal if user was panning
-    var svgEl = path.closest('svg');
-    var pzInst = svgEl ? pz[svgEl.id] : null;
-    if (pzInst && pzInst.wasDragged) { pzInst.wasDragged = false; return; }
-
     var id       = this.dataset.id;
     var address  = this.dataset.address;
     var status   = this.dataset.status;
@@ -613,13 +878,21 @@ document.querySelectorAll('.house-path').forEach(function(path) {
   });
 });
 
+function showToast(msg, type) {
+  var toast = document.getElementById('mapToast');
+  var toastMsg = document.getElementById('mapToastMsg');
+  toastMsg.textContent = msg;
+  toast.className = 'toast align-items-center border-0 shadow text-white bg-' + (type || 'success');
+  bootstrap.Toast.getOrCreateInstance(toast).show();
+}
+
 document.getElementById('confirmAllocateBtn').addEventListener('click', function() {
   var sel = document.getElementById('applicantSelect');
   if (!sel) return;
-  var houseId     = parseInt(sel.dataset.houseId);
-  var applicantId = parseInt(sel.value);
+  var houseId     = sel.dataset.houseId;
+  var applicantId = sel.value;
 
-  if (!applicantId) { alert('Please select an applicant first.'); return; }
+  if (!applicantId) { showToast('Please select an applicant first.', 'warning'); return; }
 
   var btn = this;
   btn.disabled = true;
@@ -634,19 +907,22 @@ document.getElementById('confirmAllocateBtn').addEventListener('click', function
   .then(function(r) { return r.json(); })
   .then(function(data) {
     if (data.detail) {
-      alert(data.detail);
-      location.reload();
+      showToast(data.detail, 'success');
+      setTimeout(function() { location.reload(); }, 1800);
     } else {
-      alert('Allocation failed: ' + JSON.stringify(data));
+      var errMsg = data.non_field_errors
+        ? data.non_field_errors[0]
+        : (data.house_id || data.applicant_id || ['Allocation failed.'])[0];
+      showToast(errMsg, 'danger');
       btn.disabled = false;
       btn.textContent = 'Confirm Allocation';
     }
   })
   .catch(function() {
-    alert('Network error. Please try again.');
+    showToast('Network error. Please try again.', 'danger');
     btn.disabled = false;
     btn.textContent = 'Confirm Allocation';
   });
 });
 </script>
-{% endblock %}
+{% endblock extra_js %}

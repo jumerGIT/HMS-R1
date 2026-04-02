@@ -1,0 +1,817 @@
+{% extends 'housing/base.html' %}
+{% block title %}Walk-in Application – ECIMMS{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+  <div>
+    <h2><i class="bi bi-person-walking me-2"></i>Walk-in Application Entry</h2>
+    <p>Encode an application on behalf of a walk-in applicant</p>
+  </div>
+  <a href="{% url 'application_list' %}" class="btn btn-sm fw-semibold"
+     style="border-radius:8px;border:1.5px solid #e2e8f0;background:#fff;color:#475569;">
+    <i class="bi bi-arrow-left me-1"></i>Back to Applications
+  </a>
+</div>
+
+{% if success %}
+<!-- ══════════════════ SUCCESS STATE ══════════════════ -->
+<div class="row justify-content-center">
+  <div class="col-lg-6">
+    <div style="background:#fff;border-radius:16px;box-shadow:0 4px 24px rgba(0,0,0,.1);overflow:hidden;">
+
+      <!-- Header -->
+      <div style="background:#0038A8;padding:2rem;text-align:center;color:#fff;">
+        <div style="width:64px;height:64px;background:rgba(255,255,255,.15);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 1rem;">
+          <i class="bi bi-check-lg" style="font-size:2rem;"></i>
+        </div>
+        <h4 class="fw-bold mb-1">Application Submitted!</h4>
+        <p class="mb-0" style="opacity:.85;font-size:.9rem;">
+          Walk-in application for <strong>{{ credentials.full_name }}</strong> has been recorded.
+        </p>
+      </div>
+
+      <!-- Credentials card -->
+      <div style="padding:2rem;">
+        <p class="fw-semibold mb-3" style="color:#374151;">
+          <i class="bi bi-key-fill me-2 text-warning"></i>
+          Give these login credentials to the applicant:
+        </p>
+
+        <div style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:12px;padding:1.25rem;margin-bottom:1.5rem;">
+          <div class="row g-3">
+            <div class="col-12">
+              <div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#94a3b8;">Username</div>
+              <div class="d-flex align-items-center gap-2 mt-1">
+                <code style="font-size:1.1rem;font-weight:700;color:#0038A8;background:#eff6ff;padding:.3rem .75rem;border-radius:8px;flex:1;">{{ credentials.username }}</code>
+                <button class="btn btn-sm btn-outline-secondary" style="border-radius:8px;"
+                        onclick="copyText('{{ credentials.username }}', this)" title="Copy username">
+                  <i class="bi bi-clipboard"></i>
+                </button>
+              </div>
+            </div>
+            <div class="col-12">
+              <div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#94a3b8;">Temporary Password</div>
+              <div class="d-flex align-items-center gap-2 mt-1">
+                <code style="font-size:1.1rem;font-weight:700;color:#dc2626;background:#fef2f2;padding:.3rem .75rem;border-radius:8px;flex:1;" id="tempPasswordCode">{{ credentials.password }}</code>
+                <button class="btn btn-sm btn-outline-secondary" style="border-radius:8px;"
+                        onclick="copyText('{{ credentials.password }}', this)" title="Copy password">
+                  <i class="bi bi-clipboard"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="alert alert-warning d-flex gap-2 mb-4" style="border-radius:10px;font-size:.83rem;">
+          <i class="bi bi-exclamation-triangle-fill flex-shrink-0 mt-1"></i>
+          <div>
+            The applicant will be <strong>required to change their password</strong> on first login.
+            Write down or print these credentials before leaving this page — the password will not be shown again.
+          </div>
+        </div>
+
+        <div class="d-flex gap-2 flex-wrap">
+          <a href="{% url 'walkin_application' %}" class="btn btn-primary fw-semibold" style="border-radius:9px;">
+            <i class="bi bi-person-plus me-1"></i>Add Another Walk-in
+          </a>
+          <a href="{% url 'application_list' %}" class="btn btn-outline-secondary fw-semibold" style="border-radius:9px;">
+            <i class="bi bi-list-ul me-1"></i>View All Applications
+          </a>
+          <button onclick="window.print()" class="btn btn-outline-secondary fw-semibold" style="border-radius:9px;">
+            <i class="bi bi-printer me-1"></i>Print Credentials
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% else %}
+<!-- ══════════════════ FORM STATE ══════════════════ -->
+<div class="row justify-content-center">
+  <div class="col-lg-9">
+
+    {% if form.errors or walkin_errors %}
+    <div class="alert alert-danger d-flex gap-2 mb-3" style="border-radius:10px;">
+      <i class="bi bi-exclamation-triangle-fill flex-shrink-0 mt-1"></i>
+      <div>Please correct the errors below before submitting.</div>
+    </div>
+    {% endif %}
+
+    <form method="post" enctype="multipart/form-data" novalidate>
+      {% csrf_token %}
+
+      <!-- ── Section 0: Applicant Account ── -->
+      <div class="app-section">
+        <div class="app-section__header">
+          <span class="app-section__num" style="background:#7c3aed;">0</span>
+          <div>
+            <h6 class="app-section__title">Applicant Account Setup</h6>
+            <p class="app-section__sub">A system account will be automatically created for this walk-in applicant</p>
+          </div>
+          <span class="ms-auto badge" style="background:#f3f0ff;color:#7c3aed;font-size:.72rem;font-weight:700;border-radius:20px;padding:.3rem .8rem;">
+            <i class="bi bi-person-walking me-1"></i>Walk-in
+          </span>
+        </div>
+        <div class="app-section__body">
+          <div class="row g-3">
+            <div class="col-sm-6">
+              <label class="form-label fw-medium small">First Name <span class="text-danger">*</span></label>
+              <input type="text" name="walkin_fname" class="form-control{% if walkin_errors.walkin_fname %} is-invalid{% endif %}"
+                     value="{{ post.walkin_fname|default:'' }}" placeholder="Applicant's first name">
+              {% if walkin_errors.walkin_fname %}<div class="invalid-feedback">{{ walkin_errors.walkin_fname }}</div>{% endif %}
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label fw-medium small">Last Name <span class="text-danger">*</span></label>
+              <input type="text" name="walkin_lname" class="form-control{% if walkin_errors.walkin_lname %} is-invalid{% endif %}"
+                     value="{{ post.walkin_lname|default:'' }}" placeholder="Applicant's last name">
+              {% if walkin_errors.walkin_lname %}<div class="invalid-feedback">{{ walkin_errors.walkin_lname }}</div>{% endif %}
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label fw-medium small">Email <span class="text-muted">(optional)</span></label>
+              <input type="email" name="walkin_email" class="form-control"
+                     value="{{ post.walkin_email|default:'' }}" placeholder="email@example.com">
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label fw-medium small">Phone <span class="text-muted">(optional)</span></label>
+              <div class="input-group">
+                <span class="input-group-text fw-semibold"
+                      style="color:#0038A8; background:#eff6ff; border-color:#bfdbfe; font-size:.85rem;">+63</span>
+                <input type="tel" name="walkin_phone" class="form-control"
+                       value="{{ post.walkin_phone|default:'' }}"
+                       placeholder="9XX XXX XXXX" maxlength="10">
+              </div>
+            </div>
+          </div>
+          <div class="mt-3 p-3 rounded" style="background:#f3f0ff;border:1px solid #ddd6fe;font-size:.82rem;color:#5b21b6;">
+            <i class="bi bi-info-circle-fill me-2"></i>
+            A username will be auto-generated and a temporary password created. You will see them after submitting.
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Section 1: Applicant Info ── -->
+      <div class="app-section">
+        <div class="app-section__header">
+          <span class="app-section__num">1</span>
+          <div>
+            <h6 class="app-section__title">Applicant Information</h6>
+            <p class="app-section__sub">Person submitting this application</p>
+          </div>
+        </div>
+        <div class="app-section__body">
+          <div class="row g-3">
+            <div class="col-sm-6">
+              {% with f=form.applicant_fname %}
+              <label class="form-label fw-medium small">{{ f.label }} <span class="text-danger">*</span></label>
+              <input type="text" name="{{ f.html_name }}" class="form-control{% if f.errors %} is-invalid{% endif %}"
+                     value="{{ f.value|default:'' }}" placeholder="First name">
+              {% for e in f.errors %}<div class="invalid-feedback">{{ e }}</div>{% endfor %}
+              {% endwith %}
+            </div>
+            <div class="col-sm-6">
+              {% with f=form.applicant_lname %}
+              <label class="form-label fw-medium small">{{ f.label }} <span class="text-danger">*</span></label>
+              <input type="text" name="{{ f.html_name }}" class="form-control{% if f.errors %} is-invalid{% endif %}"
+                     value="{{ f.value|default:'' }}" placeholder="Last name">
+              {% for e in f.errors %}<div class="invalid-feedback">{{ e }}</div>{% endfor %}
+              {% endwith %}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Section 2: Household Head ── -->
+      <div class="app-section">
+        <div class="app-section__header">
+          <span class="app-section__num">2</span>
+          <div>
+            <h6 class="app-section__title">Household Head Information</h6>
+            <p class="app-section__sub">Details of the head of the household</p>
+          </div>
+        </div>
+        <div class="app-section__body" id="hhSection">
+          <div class="row g-3">
+            <div class="col-sm-4">
+              {% with f=form.hh_fname %}
+              <label class="form-label fw-medium small">{{ f.label }} <span class="text-danger">*</span></label>
+              <input type="text" name="{{ f.html_name }}" id="{{ f.id_for_label }}"
+                     class="form-control{% if f.errors %} is-invalid{% endif %}"
+                     value="{{ f.value|default:'' }}">
+              {% for e in f.errors %}<div class="invalid-feedback">{{ e }}</div>{% endfor %}
+              {% endwith %}
+            </div>
+            <div class="col-sm-4">
+              {% with f=form.hh_mname %}
+              <label class="form-label fw-medium small">{{ f.label }}</label>
+              <input type="text" name="{{ f.html_name }}" id="{{ f.id_for_label }}"
+                     class="form-control{% if f.errors %} is-invalid{% endif %}"
+                     value="{{ f.value|default:'' }}">
+              {% for e in f.errors %}<div class="invalid-feedback">{{ e }}</div>{% endfor %}
+              {% endwith %}
+            </div>
+            <div class="col-sm-4">
+              {% with f=form.hh_lname %}
+              <label class="form-label fw-medium small">{{ f.label }} <span class="text-danger">*</span></label>
+              <input type="text" name="{{ f.html_name }}" id="{{ f.id_for_label }}"
+                     class="form-control{% if f.errors %} is-invalid{% endif %}"
+                     value="{{ f.value|default:'' }}">
+              {% for e in f.errors %}<div class="invalid-feedback">{{ e }}</div>{% endfor %}
+              {% endwith %}
+            </div>
+            <div class="col-sm-4">
+              {% with f=form.hh_bdate %}
+              <label class="form-label fw-medium small">{{ f.label }}</label>
+              <input type="date" name="{{ f.html_name }}" id="{{ f.id_for_label }}"
+                     class="form-control{% if f.errors %} is-invalid{% endif %}"
+                     value="{{ f.value|default:'' }}"
+                     min="1900-01-01" max="{% now 'Y-m-d' %}">
+              {% for e in f.errors %}<div class="invalid-feedback">{{ e }}</div>{% endfor %}
+              {% endwith %}
+            </div>
+            <!-- Photo capture -->
+            <div class="col-12">
+              <label class="form-label fw-medium small">Photo with National ID <span class="text-muted">(optional)</span></label>
+              <input type="hidden" name="hh_image_data" id="hhImageData">
+              <div id="hhPhotoPreview" class="mb-2" style="display:none;">
+                <img id="hhPreviewImg" src="" style="max-width:220px;border-radius:10px;border:2px solid #0038A8;">
+                <div class="mt-1">
+                  <button type="button" class="btn btn-sm btn-outline-secondary" id="hhRetakeBtn">
+                    <i class="bi bi-arrow-repeat me-1"></i>Retake
+                  </button>
+                </div>
+              </div>
+              <div id="hhCameraWrap" style="display:none;">
+                <video id="hhVideo" autoplay playsinline muted style="width:100%;max-width:400px;border-radius:10px;background:#000;"></video>
+                <canvas id="hhCanvas" style="display:none;"></canvas>
+                <div class="mt-2 d-flex gap-2">
+                  <button type="button" class="btn btn-primary btn-sm" id="hhCaptureBtn"><i class="bi bi-camera-fill me-1"></i>Capture</button>
+                  <button type="button" class="btn btn-outline-secondary btn-sm" id="hhCancelCamBtn"><i class="bi bi-x-lg me-1"></i>Cancel</button>
+                </div>
+              </div>
+              <div class="d-flex gap-2 flex-wrap align-items-center">
+                <button type="button" class="btn btn-outline-primary btn-sm" id="hhOpenCamBtn"><i class="bi bi-camera me-1"></i>Open Camera</button>
+                <label class="btn btn-outline-secondary btn-sm mb-0">
+                  <i class="bi bi-upload me-1"></i>Upload Photo
+                  <input type="file" name="hh_image" accept="image/*" style="display:none;" id="hhFileInput">
+                </label>
+              </div>
+            </div>
+          </div>
+          <div id="hhStatus" class="hh-status mt-2"></div>
+        </div>
+      </div>
+
+      <!-- ── Section 3: National ID ── -->
+      <div class="app-section">
+        <div class="app-section__header">
+          <span class="app-section__num">3</span>
+          <div>
+            <h6 class="app-section__title">National ID</h6>
+            <p class="app-section__sub">Upload or photograph the applicant's National ID</p>
+          </div>
+        </div>
+        <div class="app-section__body">
+          <div class="row g-4">
+            <div class="col-md-6">
+              <p class="fw-medium small mb-1">Front of ID <span class="text-muted">(optional)</span></p>
+              <input type="hidden" name="nid_front_data" id="nidFrontData">
+              <div id="nidFrontPreview" style="display:none;" class="mb-2">
+                <img id="nidFrontPreviewImg" src="" style="max-width:100%;border-radius:8px;border:2px solid #0038A8;">
+              </div>
+              <div class="d-flex gap-2 flex-wrap" id="nidFrontActions">
+                <label class="btn btn-outline-secondary btn-sm mb-0">
+                  <i class="bi bi-upload me-1"></i>Upload
+                  <input type="file" accept="image/*" id="nidFrontFile" style="display:none;">
+                </label>
+                <button type="button" class="btn btn-outline-primary btn-sm" id="nidFrontCamBtn"><i class="bi bi-camera me-1"></i>Take Photo</button>
+                <button type="button" class="btn btn-outline-danger btn-sm" id="nidFrontClearBtn" style="display:none;"><i class="bi bi-x-lg me-1"></i>Clear</button>
+              </div>
+              <div id="nidFrontCamWrap" style="display:none;" class="mt-2">
+                <video id="nidFrontVideo" autoplay playsinline muted style="width:100%;border-radius:8px;background:#000;"></video>
+                <canvas id="nidFrontCanvas" style="display:none;"></canvas>
+                <div class="mt-2 d-flex gap-2">
+                  <button type="button" class="btn btn-primary btn-sm" id="nidFrontCapture"><i class="bi bi-camera-fill me-1"></i>Capture</button>
+                  <button type="button" class="btn btn-outline-secondary btn-sm" id="nidFrontCancelCam"><i class="bi bi-x-lg me-1"></i>Cancel</button>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <p class="fw-medium small mb-1">Back of ID <span class="text-muted">(optional)</span></p>
+              <input type="hidden" name="nid_back_data" id="nidBackData">
+              <div id="nidBackPreview" style="display:none;" class="mb-2">
+                <img id="nidBackPreviewImg" src="" style="max-width:100%;border-radius:8px;border:2px solid #0038A8;">
+              </div>
+              <div class="d-flex gap-2 flex-wrap" id="nidBackActions">
+                <label class="btn btn-outline-secondary btn-sm mb-0">
+                  <i class="bi bi-upload me-1"></i>Upload
+                  <input type="file" accept="image/*" id="nidBackFile" style="display:none;">
+                </label>
+                <button type="button" class="btn btn-outline-primary btn-sm" id="nidBackCamBtn"><i class="bi bi-camera me-1"></i>Take Photo</button>
+                <button type="button" class="btn btn-outline-danger btn-sm" id="nidBackClearBtn" style="display:none;"><i class="bi bi-x-lg me-1"></i>Clear</button>
+              </div>
+              <div id="nidBackCamWrap" style="display:none;" class="mt-2">
+                <video id="nidBackVideo" autoplay playsinline muted style="width:100%;border-radius:8px;background:#000;"></video>
+                <canvas id="nidBackCanvas" style="display:none;"></canvas>
+                <div class="mt-2 d-flex gap-2">
+                  <button type="button" class="btn btn-primary btn-sm" id="nidBackCapture"><i class="bi bi-camera-fill me-1"></i>Capture</button>
+                  <button type="button" class="btn btn-outline-secondary btn-sm" id="nidBackCancelCam"><i class="bi bi-x-lg me-1"></i>Cancel</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Section 4: Civil Status ── -->
+      <div class="app-section">
+        <div class="app-section__header">
+          <span class="app-section__num">4</span>
+          <div>
+            <h6 class="app-section__title">Civil Status</h6>
+            <p class="app-section__sub">Marital status and spouse information</p>
+          </div>
+        </div>
+        <div class="app-section__body">
+          <div class="row g-3">
+            <div class="col-sm-4">
+              {% with f=form.civil_status %}
+              <label class="form-label fw-medium small">{{ f.label }} <span class="text-danger">*</span></label>
+              <select name="{{ f.html_name }}" id="civilStatusSelect"
+                      class="form-select{% if f.errors %} is-invalid{% endif %}">
+                <option value="">— Select —</option>
+                {% for val, lbl in f.field.choices %}{% if val %}<option value="{{ val }}" {% if f.value == val %}selected{% endif %}>{{ lbl }}</option>{% endif %}{% endfor %}
+              </select>
+              {% for e in f.errors %}<div class="invalid-feedback">{{ e }}</div>{% endfor %}
+              {% endwith %}
+            </div>
+            <div class="col-sm-8" id="spouseFields" style="display:none;">
+              <div class="row g-3">
+                <div class="col-sm-6">
+                  {% with f=form.spouse_name %}
+                  <label class="form-label fw-medium small">{{ f.label }}</label>
+                  <input type="text" name="{{ f.html_name }}" class="form-control" value="{{ f.value|default:'' }}">
+                  {% endwith %}
+                </div>
+                <div class="col-sm-6">
+                  {% with f=form.spouse_bdate %}
+                  <label class="form-label fw-medium small">{{ f.label }}</label>
+                  <input type="date" name="{{ f.html_name }}" class="form-control"
+                         value="{{ f.value|default:'' }}"
+                         min="1900-01-01" max="{% now 'Y-m-d' %}">
+                  {% for e in f.errors %}<div class="invalid-feedback">{{ e }}</div>{% endfor %}
+                  {% endwith %}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Section 5: Household Details ── -->
+      <div class="app-section">
+        <div class="app-section__header">
+          <span class="app-section__num">5</span>
+          <div>
+            <h6 class="app-section__title">Household Details</h6>
+            <p class="app-section__sub">Information about the household and situation</p>
+          </div>
+        </div>
+        <div class="app-section__body">
+          <div class="row g-3">
+            <div class="col-sm-4">
+              {% with f=form.household_type %}
+              <label class="form-label fw-medium small">{{ f.label }} <span class="text-danger">*</span></label>
+              <select name="{{ f.html_name }}" class="form-select{% if f.errors %} is-invalid{% endif %}">
+                <option value="">— Select —</option>
+                {% for val, lbl in f.field.choices %}{% if val %}<option value="{{ val }}" {% if f.value == val %}selected{% endif %}>{{ lbl }}</option>{% endif %}{% endfor %}
+              </select>
+              {% for e in f.errors %}<div class="invalid-feedback">{{ e }}</div>{% endfor %}
+              {% endwith %}
+            </div>
+            <div class="col-sm-4">
+              {% with f=form.tenurial_status %}
+              <label class="form-label fw-medium small">{{ f.label }} <span class="text-danger">*</span></label>
+              <select name="{{ f.html_name }}" class="form-select{% if f.errors %} is-invalid{% endif %}">
+                <option value="">— Select —</option>
+                {% for val, lbl in f.field.choices %}{% if val %}<option value="{{ val }}" {% if f.value == val %}selected{% endif %}>{{ lbl }}</option>{% endif %}{% endfor %}
+              </select>
+              {% for e in f.errors %}<div class="invalid-feedback">{{ e }}</div>{% endfor %}
+              {% endwith %}
+            </div>
+            <div class="col-sm-4">
+              <label class="form-label fw-medium small">Household Size</label>
+              <div class="form-control bg-light text-muted" id="familySizeDisplay">1 person(s)</div>
+              <div class="form-text">Auto-calculated from head + members.</div>
+            </div>
+            <div class="col-sm-4">
+              {% with f=form.extent_damage %}
+              <label class="form-label fw-medium small">{{ f.label }} <span class="text-danger">*</span></label>
+              <select name="{{ f.html_name }}" class="form-select{% if f.errors %} is-invalid{% endif %}">
+                <option value="">— Select —</option>
+                {% for val, lbl in f.field.choices %}{% if val %}<option value="{{ val }}" {% if f.value == val %}selected{% endif %}>{{ lbl }}</option>{% endif %}{% endfor %}
+              </select>
+              {% for e in f.errors %}<div class="invalid-feedback">{{ e }}</div>{% endfor %}
+              {% endwith %}
+            </div>
+            <div class="col-sm-4">
+              {% with f=form.housing_option %}
+              <label class="form-label fw-medium small">{{ f.label }} <span class="text-danger">*</span></label>
+              <select name="{{ f.html_name }}" class="form-select{% if f.errors %} is-invalid{% endif %}">
+                <option value="">— Select —</option>
+                {% for val, lbl in f.field.choices %}{% if val %}<option value="{{ val }}" {% if f.value == val %}selected{% endif %}>{{ lbl }}</option>{% endif %}{% endfor %}
+              </select>
+              {% for e in f.errors %}<div class="invalid-feedback">{{ e }}</div>{% endfor %}
+              {% endwith %}
+            </div>
+            <div class="col-sm-4">
+              {% with f=form.monthly_income %}
+              <label class="form-label fw-medium small">{{ f.label }}</label>
+              <div class="input-group">
+                <span class="input-group-text">₱</span>
+                <input type="number" name="{{ f.html_name }}" class="form-control" value="{{ f.value|default:'0' }}" min="0">
+              </div>
+              {% endwith %}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Section 6: Address & Contact ── -->
+      <div class="app-section">
+        <div class="app-section__header">
+          <span class="app-section__num">6</span>
+          <div>
+            <h6 class="app-section__title">Address & Contact</h6>
+            <p class="app-section__sub">Applicant's current address and contact number</p>
+          </div>
+        </div>
+        <div class="app-section__body">
+          <div class="row g-3">
+            <div class="col-12">
+              <label class="form-label fw-medium small">House No. / Street / Purok</label>
+              <input type="text" id="addr_street" class="form-control" placeholder="e.g. 123 Rizal St., Purok 4">
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label fw-medium small">Region <span class="text-danger">*</span></label>
+              <select id="addr_region" class="form-select"><option value="">— Loading… —</option></select>
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label fw-medium small">Province <span class="text-danger">*</span></label>
+              <select id="addr_province" class="form-select" disabled><option value="">— Select region first —</option></select>
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label fw-medium small">City / Municipality <span class="text-danger">*</span></label>
+              <select id="addr_city" class="form-select" disabled><option value="">— Select province first —</option></select>
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label fw-medium small">Barangay <span class="text-danger">*</span></label>
+              <select id="addr_barangay" class="form-select" disabled><option value="">— Select city first —</option></select>
+            </div>
+            {% with f=form.current_address %}
+            <input type="hidden" name="{{ f.html_name }}" id="{{ f.id_for_label }}" value="{{ f.value|default:'' }}">
+            {% for e in f.errors %}<div class="col-12"><div class="text-danger small">{{ e }}</div></div>{% endfor %}
+            {% endwith %}
+            <div class="col-12">
+              <div id="addr_preview" class="p-2 bg-light rounded small text-muted" style="min-height:2.2rem;border:1px dashed #d1d5db;">
+                <i class="bi bi-geo-alt me-1"></i><span id="addr_preview_text">Address will appear here…</span>
+              </div>
+            </div>
+            <div class="col-sm-6">
+              {% with f=form.contact_no %}
+              <label class="form-label fw-medium small">{{ f.label }}</label>
+              <div class="input-group">
+                <span class="input-group-text fw-semibold"
+                      style="color:#0038A8; background:#eff6ff; border-color:#bfdbfe; font-size:.85rem;">+63</span>
+                <input type="tel" name="{{ f.html_name }}" class="form-control"
+                       value="{{ f.value|default:'' }}"
+                       placeholder="9XX XXX XXXX" maxlength="10">
+              </div>
+              {% for e in f.errors %}<div class="invalid-feedback d-block">{{ e }}</div>{% endfor %}
+              {% endwith %}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Section 7: Household Members ── -->
+      <div class="app-section">
+        <div class="app-section__header">
+          <span class="app-section__num">7</span>
+          <div>
+            <h6 class="app-section__title">Household Members</h6>
+            <p class="app-section__sub">Other family members living with the household head</p>
+          </div>
+        </div>
+        <div class="app-section__body">
+          <div id="membersContainer"></div>
+          <input type="hidden" id="memberCount" name="member_count" value="0">
+          <button type="button" id="addMemberBtn" class="btn btn-outline-primary btn-sm mt-2">
+            <i class="bi bi-person-plus me-1"></i>Add Member
+          </button>
+        </div>
+      </div>
+
+      <!-- Submit -->
+      <div class="d-flex gap-2 justify-content-end mt-1 mb-4">
+        <a href="{% url 'application_list' %}" class="btn btn-outline-secondary fw-semibold px-4" style="border-radius:10px;">Cancel</a>
+        <button type="submit" class="btn btn-primary btn-lg px-5 fw-semibold" style="background:#0038A8;border-color:#0038A8;border-radius:10px;">
+          <i class="bi bi-person-check me-2"></i>Submit Walk-in Application
+        </button>
+      </div>
+    </form>
+
+  </div>
+</div>
+{% endif %}
+
+<style>
+.app-section {
+  background:#fff; border-radius:12px;
+  box-shadow:0 2px 12px rgba(0,0,0,.07);
+  margin-bottom:1.25rem; overflow:hidden;
+}
+.app-section__header {
+  display:flex; align-items:center; gap:1rem;
+  padding:1rem 1.5rem; border-bottom:1px solid #f0f0f0; background:#fafbfc;
+}
+.app-section__num {
+  width:32px; height:32px; border-radius:50%;
+  background:#0038A8; color:#fff;
+  display:flex; align-items:center; justify-content:center;
+  font-weight:700; font-size:.9rem; flex-shrink:0;
+}
+.app-section__title { margin:0; font-size:.95rem; font-weight:700; color:#1e293b; }
+.app-section__sub   { margin:0; font-size:.78rem; color:#6b7280; }
+.app-section__body  { padding:1.25rem 1.5rem; }
+.member-card { border:1.5px solid #e5e7eb; border-radius:10px; overflow:hidden; background:#fff; animation:fadeSlideIn .2s ease both; }
+.member-card__header { display:flex; align-items:center; justify-content:space-between; padding:.5rem .75rem; background:#f1f5f9; border-bottom:1px solid #e5e7eb; }
+.member-card__label  { font-size:.8rem; font-weight:600; color:#374151; }
+@keyframes fadeSlideIn { from{opacity:0;transform:translateY(-6px)} to{opacity:1;transform:translateY(0)} }
+.hh-status { display:none; font-size:.78rem; padding:.5rem .75rem; border-radius:8px; }
+.hh-status--found { display:flex; align-items:center; gap:.4rem; background:#fef2f2; color:#dc2626; border:1px solid #fecaca; }
+.hh-status--clear { display:flex; align-items:center; gap:.4rem; background:#f0fdf4; color:#16a34a; border:1px solid #bbf7d0; }
+
+@media print {
+  .page-header, nav, .sidebar, form, .alert-warning { display:none !important; }
+  body { background:#fff; }
+}
+</style>
+
+<script>
+// ── Copy to clipboard ─────────────────────────────────────────
+function copyText(text, btn) {
+  navigator.clipboard.writeText(text).then(() => {
+    const orig = btn.innerHTML;
+    btn.innerHTML = '<i class="bi bi-check-lg"></i>';
+    btn.classList.add('btn-success');
+    btn.classList.remove('btn-outline-secondary');
+    setTimeout(() => { btn.innerHTML = orig; btn.classList.remove('btn-success'); btn.classList.add('btn-outline-secondary'); }, 1800);
+  });
+}
+
+// ── Section 0 → Section 1 name sync ──────────────────────────
+(function () {
+  const src0Fname = document.querySelector('[name="walkin_fname"]');
+  const src0Lname = document.querySelector('[name="walkin_lname"]');
+  const dst1Fname = document.querySelector('[name="applicant_fname"]');
+  const dst1Lname = document.querySelector('[name="applicant_lname"]');
+  if (!src0Fname || !dst1Fname) return;
+
+  function sync() {
+    // Only overwrite if the destination is still empty or matches the previous sync
+    if (!dst1Fname._manuallyEdited) dst1Fname.value = src0Fname.value;
+    if (!dst1Lname._manuallyEdited) dst1Lname.value = src0Lname.value;
+  }
+
+  src0Fname.addEventListener('input', sync);
+  src0Lname.addEventListener('input', sync);
+
+  // If staff manually edits Section 1, stop overwriting it
+  dst1Fname.addEventListener('input', () => { dst1Fname._manuallyEdited = dst1Fname.value !== src0Fname.value; });
+  dst1Lname.addEventListener('input', () => { dst1Lname._manuallyEdited = dst1Lname.value !== src0Lname.value; });
+})();
+
+// ── Civil status → spouse fields ──────────────────────────────
+const civilSelect = document.getElementById('civilStatusSelect');
+const spouseFields = document.getElementById('spouseFields');
+if (civilSelect) {
+  civilSelect.addEventListener('change', function () {
+    spouseFields.style.display = (this.value === 'married' || this.value === 'live_in') ? '' : 'none';
+  });
+}
+
+// ── PSGC Cascading Address ────────────────────────────────────
+(function () {
+  const PSGC = 'https://psgc.gitlab.io/api';
+  const selRegion   = document.getElementById('addr_region');
+  const selProvince = document.getElementById('addr_province');
+  const selCity     = document.getElementById('addr_city');
+  const selBarangay = document.getElementById('addr_barangay');
+  const hiddenAddr  = document.getElementById('id_current_address');
+  const streetInput = document.getElementById('addr_street');
+  const previewText = document.getElementById('addr_preview_text');
+  if (!selRegion) return;
+
+  let state = { region:'', province:'', city:'', barangay:'', street:'' };
+
+  function setLoading(sel, msg) { sel.innerHTML = `<option>${msg}</option>`; sel.disabled = true; }
+  function reset(...sels) { sels.forEach(s => { s.innerHTML = '<option value="">— Select —</option>'; s.disabled = true; }); }
+  function enable(sel) { sel.disabled = false; }
+
+  async function fetchJSON(url) { return (await fetch(url)).json(); }
+
+  function buildOptions(sel, items) {
+    sel.innerHTML = '<option value="">— Select —</option>';
+    [...items].sort((a,b)=>a.name.localeCompare(b.name)).forEach(item => {
+      const o = document.createElement('option'); o.value = item.code; o.textContent = item.name; sel.appendChild(o);
+    });
+    enable(sel);
+  }
+
+  function updatePreview() {
+    const parts = [state.street, state.barangay, state.city, state.province, state.region].filter(Boolean);
+    const addr = parts.join(', ');
+    previewText.textContent = addr || 'Address will appear here…';
+    hiddenAddr.value = addr;
+  }
+
+  (async function loadRegions() {
+    try { setLoading(selRegion, 'Loading regions…'); buildOptions(selRegion, await fetchJSON(`${PSGC}/regions/`)); }
+    catch { selRegion.innerHTML = '<option>Failed to load</option>'; }
+  })();
+
+  selRegion.addEventListener('change', async function () {
+    state.region = this.options[this.selectedIndex]?.text || '';
+    state.province = state.city = state.barangay = '';
+    reset(selProvince, selCity, selBarangay); updatePreview();
+    if (!this.value) return;
+    try {
+      setLoading(selProvince, 'Loading…');
+      const provinces = await fetchJSON(`${PSGC}/regions/${this.value}/provinces/`);
+      if (!provinces.length) {
+        setLoading(selProvince, 'N/A');
+        buildOptions(selCity, await fetchJSON(`${PSGC}/regions/${this.value}/cities-municipalities/`));
+      } else { buildOptions(selProvince, provinces); }
+    } catch {}
+  });
+
+  selProvince.addEventListener('change', async function () {
+    state.province = this.options[this.selectedIndex]?.text || '';
+    state.city = state.barangay = ''; reset(selCity, selBarangay); updatePreview();
+    if (!this.value) return;
+    try { setLoading(selCity, 'Loading…'); buildOptions(selCity, await fetchJSON(`${PSGC}/provinces/${this.value}/cities-municipalities/`)); } catch {}
+  });
+
+  selCity.addEventListener('change', async function () {
+    state.city = this.options[this.selectedIndex]?.text || '';
+    state.barangay = ''; reset(selBarangay); updatePreview();
+    if (!this.value) return;
+    try { setLoading(selBarangay, 'Loading…'); buildOptions(selBarangay, await fetchJSON(`${PSGC}/cities-municipalities/${this.value}/barangays/`)); } catch {}
+  });
+
+  selBarangay.addEventListener('change', function () { state.barangay = this.options[this.selectedIndex]?.text || ''; updatePreview(); });
+  streetInput?.addEventListener('input', function () { state.street = this.value.trim(); updatePreview(); });
+})();
+
+// ── Household Members ─────────────────────────────────────────
+const RELATIONSHIP_OPTIONS = [
+  ['spouse','Spouse'],['child','Child'],['parent','Parent'],['sibling','Sibling'],
+  ['grandchild','Grandchild'],['grandparent','Grandparent'],
+  ['other_relative','Other Relative'],['non_relative','Non-Relative'],
+];
+
+const membersContainer = document.getElementById('membersContainer');
+const memberCountInput = document.getElementById('memberCount');
+const addMemberBtn     = document.getElementById('addMemberBtn');
+
+function getMemberCount() { return parseInt(memberCountInput?.value) || 0; }
+
+function buildMemberRow(idx) {
+  const relOpts = RELATIONSHIP_OPTIONS.map(([v,l]) => `<option value="${v}"${v==='other_relative'?' selected':''}>${l}</option>`).join('');
+  const card = document.createElement('div');
+  card.className = 'member-card mb-2';
+  card.innerHTML = `
+    <div class="member-card__header">
+      <span class="member-card__label"><i class="bi bi-person me-1"></i>Member #<span class="member-num">${idx+1}</span></span>
+      <button type="button" class="btn btn-sm btn-outline-danger remove-member-btn"><i class="bi bi-trash"></i></button>
+    </div>
+    <div class="row g-2 p-3">
+      <div class="col-sm-3">
+        <label class="form-label fw-medium small">Last Name <span class="text-danger">*</span></label>
+        <input type="text" name="member_lname_${idx}" class="form-control form-control-sm" required>
+      </div>
+      <div class="col-sm-3">
+        <label class="form-label fw-medium small">First Name <span class="text-danger">*</span></label>
+        <input type="text" name="member_fname_${idx}" class="form-control form-control-sm" required>
+      </div>
+      <div class="col-sm-2">
+        <label class="form-label fw-medium small">Middle Name</label>
+        <input type="text" name="member_mname_${idx}" class="form-control form-control-sm">
+      </div>
+      <div class="col-sm-2">
+        <label class="form-label fw-medium small">Relationship</label>
+        <select name="member_relationship_${idx}" class="form-select form-select-sm">${relOpts}</select>
+      </div>
+      <div class="col-sm-2">
+        <label class="form-label fw-medium small">Birthdate</label>
+        <input type="date" name="member_bdate_${idx}" class="form-control form-control-sm" min="1900-01-01" max="${new Date().toISOString().slice(0,10)}">
+      </div>
+    </div>`;
+  return card;
+}
+
+function renumber() {
+  membersContainer.querySelectorAll('.member-card').forEach((card, i) => {
+    card.querySelector('.member-num').textContent = i + 1;
+    card.querySelectorAll('[name]').forEach(el => { el.name = el.name.replace(/_\d+$/, `_${i}`); });
+  });
+  const count = membersContainer.querySelectorAll('.member-card').length;
+  memberCountInput.value = count;
+  const disp = document.getElementById('familySizeDisplay');
+  if (disp) disp.textContent = (count + 1) + ' person(s)';
+}
+
+addMemberBtn?.addEventListener('click', () => {
+  membersContainer.appendChild(buildMemberRow(getMemberCount()));
+  renumber();
+});
+document.addEventListener('click', e => {
+  if (e.target.closest('.remove-member-btn')) { e.target.closest('.member-card').remove(); renumber(); }
+});
+
+// ── HH Photo camera ───────────────────────────────────────────
+(function () {
+  const openBtn = document.getElementById('hhOpenCamBtn');
+  const wrap    = document.getElementById('hhCameraWrap');
+  const video   = document.getElementById('hhVideo');
+  const canvas  = document.getElementById('hhCanvas');
+  const captBtn = document.getElementById('hhCaptureBtn');
+  const cancelB = document.getElementById('hhCancelCamBtn');
+  const retakeB = document.getElementById('hhRetakeBtn');
+  const preview = document.getElementById('hhPhotoPreview');
+  const prevImg = document.getElementById('hhPreviewImg');
+  const dataInp = document.getElementById('hhImageData');
+  const fileInp = document.getElementById('hhFileInput');
+  if (!openBtn) return;
+  let stream = null;
+  const stop = () => { if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; } wrap.style.display = 'none'; openBtn.style.display = ''; };
+  openBtn.addEventListener('click', async () => {
+    try { stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false }); video.srcObject = stream; wrap.style.display = ''; openBtn.style.display = 'none'; preview.style.display = 'none'; } catch { alert('Camera access denied.'); }
+  });
+  captBtn.addEventListener('click', () => {
+    canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+    canvas.getContext('2d').drawImage(video, 0, 0);
+    const url = canvas.toDataURL('image/jpeg', .85);
+    dataInp.value = url; prevImg.src = url; preview.style.display = ''; stop();
+  });
+  cancelB.addEventListener('click', stop);
+  retakeB.addEventListener('click', async () => {
+    preview.style.display = 'none'; dataInp.value = '';
+    try { stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false }); video.srcObject = stream; wrap.style.display = ''; openBtn.style.display = 'none'; } catch { openBtn.style.display = ''; }
+  });
+  fileInp?.addEventListener('change', function () {
+    const file = this.files[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => { dataInp.value = e.target.result; prevImg.src = e.target.result; preview.style.display = ''; };
+    reader.readAsDataURL(file);
+  });
+})();
+
+// ── NID widgets ───────────────────────────────────────────────
+function initNid(cfg) {
+  const fileInput = document.getElementById(cfg.fileId);
+  const camBtn    = document.getElementById(cfg.camBtnId);
+  const camWrap   = document.getElementById(cfg.camWrapId);
+  const video     = document.getElementById(cfg.videoId);
+  const canvas    = document.getElementById(cfg.canvasId);
+  const captBtn   = document.getElementById(cfg.captureId);
+  const cancelBtn = document.getElementById(cfg.cancelCamId);
+  const clearBtn  = document.getElementById(cfg.clearBtnId);
+  const preview   = document.getElementById(cfg.previewId);
+  const prevImg   = document.getElementById(cfg.previewImgId);
+  const dataInp   = document.getElementById(cfg.dataInputId);
+  if (!camBtn) return;
+  let stream = null;
+  const stop = () => { if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; } camWrap.style.display = 'none'; };
+  const showPrev = src => { prevImg.src = src; preview.style.display = ''; clearBtn.style.display = ''; };
+  fileInput?.addEventListener('change', function () {
+    const f = this.files[0]; if (!f) return;
+    const r = new FileReader(); r.onload = e => { dataInp.value = e.target.result; showPrev(e.target.result); }; r.readAsDataURL(f);
+  });
+  camBtn.addEventListener('click', async () => {
+    try { stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false }); video.srcObject = stream; camWrap.style.display = ''; preview.style.display = 'none'; } catch { alert('Camera access denied.'); }
+  });
+  captBtn.addEventListener('click', () => {
+    canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+    canvas.getContext('2d').drawImage(video, 0, 0);
+    const url = canvas.toDataURL('image/jpeg', .9); dataInp.value = url; showPrev(url); stop();
+  });
+  cancelBtn.addEventListener('click', stop);
+  clearBtn.addEventListener('click', () => { dataInp.value = ''; if (fileInput) fileInput.value = ''; preview.style.display = 'none'; clearBtn.style.display = 'none'; });
+}
+
+initNid({ fileId:'nidFrontFile', camBtnId:'nidFrontCamBtn', camWrapId:'nidFrontCamWrap', videoId:'nidFrontVideo', canvasId:'nidFrontCanvas', captureId:'nidFrontCapture', cancelCamId:'nidFrontCancelCam', clearBtnId:'nidFrontClearBtn', previewId:'nidFrontPreview', previewImgId:'nidFrontPreviewImg', dataInputId:'nidFrontData' });
+initNid({ fileId:'nidBackFile', camBtnId:'nidBackCamBtn', camWrapId:'nidBackCamWrap', videoId:'nidBackVideo', canvasId:'nidBackCanvas', captureId:'nidBackCapture', cancelCamId:'nidBackCancelCam', clearBtnId:'nidBackClearBtn', previewId:'nidBackPreview', previewImgId:'nidBackPreviewImg', dataInputId:'nidBackData' });
+</script>
+{% endblock %}

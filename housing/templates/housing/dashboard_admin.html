@@ -2,7 +2,10 @@
 {% block title %}Admin Dashboard – ECIMMS{% endblock %}
 
 {% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/vue@3.4.21/dist/vue.global.prod.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/dataTables.bootstrap5.min.css">
+<link rel="stylesheet" href="https://cdn.datatables.net/responsive/2.5.0/css/responsive.bootstrap5.min.css">
 <style>
 /* ── Stat card ── */
 .kpi-card {
@@ -61,6 +64,23 @@
 .chart-card .chart-title i { color: #0038A8; }
 .chart-card .chart-body { padding: 1rem 1.25rem; }
 
+/* ── Live indicator ── */
+.live-dot {
+  display: inline-flex; align-items: center; gap: .4rem;
+  font-size: .72rem; font-weight: 700; color: #16a34a;
+  letter-spacing: .03em;
+}
+.live-dot::before {
+  content: ''; width: 7px; height: 7px; border-radius: 50%;
+  background: #16a34a; animation: pulse-dot 2s infinite;
+}
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: .4; transform: scale(.7); }
+}
+.kpi-stale { opacity: .6; }
+.kpi-refreshing .kpi-value { opacity: .5; transition: opacity .3s; }
+
 /* ── Recent allocations table ── */
 .alloc-row td { font-size: .82rem; padding: .62rem .9rem; vertical-align: middle; border-bottom: 1px solid #f8fafc; }
 .alloc-row:last-child td { border-bottom: none; }
@@ -75,18 +95,46 @@
 
 {% block content %}
 
+<!-- Initial stats seed for Vue (server-rendered, then Vue takes over) -->
+<script id="initial-stats" type="application/json">
+{
+  "total_houses": {{ total_houses }},
+  "available_houses": {{ available_houses }},
+  "occupied_houses": {{ occupied_houses }},
+  "total_applications": {{ total_applications }},
+  "pending_applications": {{ pending_applications }},
+  "approved_applications": {{ approved_applications }},
+  "rejected_applications": {{ rejected_applications }},
+  "pending_allocations": {{ pending_allocations }},
+  "total_staff": {{ total_staff }},
+  "total_beneficiaries": {{ total_beneficiaries }}
+}
+</script>
+
 <!-- Page header -->
+<div id="dashboard-app">
 <div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
   <div>
     <h2 class="mb-0"><i class="bi bi-speedometer2 me-2"></i>Admin Dashboard</h2>
-    <p class="mb-0 mt-1">Full system overview — Escalante City Housing Village</p>
+    <p class="mb-0 mt-1 d-flex align-items-center gap-2">
+      Full system overview — Escalante City Housing Village
+      <!-- <span class="live-dot">LIVE</span>
+      <span style="font-size:.7rem;color:#94a3b8;">${ lastUpdated }</span> -->
+    </p>
   </div>
-  <div class="d-flex gap-2 flex-wrap">
+  <div class="d-flex gap-2 flex-wrap align-items-center">
+    <button @click="refresh(true)"
+            :disabled="refreshing"
+            class="btn btn-sm fw-semibold"
+            style="border-radius:8px;border:1.5px solid #e2e8f0;background:#fff;color:#475569;min-width:90px;">
+      <span v-if="refreshing" class="spinner-border spinner-border-sm me-1"></span>
+      <i v-else class="bi bi-arrow-clockwise me-1"></i>${ refreshing ? 'Refreshing…' : 'Refresh' }
+    </button>
     <a href="{% url 'application_list' %}?status=pending" class="btn btn-warning btn-sm fw-semibold" style="border-radius:8px;">
-      <i class="bi bi-clock me-1"></i>{{ pending_applications }} Pending
+      <i class="bi bi-clock me-1"></i><span>${ s.pending_applications }</span> Pending
     </a>
     <a href="{% url 'application_list' %}?status=approved" class="btn btn-success btn-sm fw-semibold" style="border-radius:8px;">
-      <i class="bi bi-hourglass-split me-1"></i>{{ pending_allocations }} Unhoused
+      <i class="bi bi-hourglass-split me-1"></i><span>${ s.pending_allocations }</span> Unhoused
     </a>
   </div>
 </div>
@@ -96,7 +144,7 @@
   <div class="col-6 col-md-3">
     <a href="{% url 'house_list' %}" class="kpi-card kpi-blue">
       <div class="kpi-label">Total Houses</div>
-      <div class="kpi-value">{{ total_houses }}</div>
+      <div class="kpi-value">${ s.total_houses }</div>
       <div class="kpi-sub">Site 1 + Site 2</div>
       <div class="occ-bar"><div class="occ-fill" style="width:100%; background:#0038A8;"></div></div>
       <i class="bi bi-houses kpi-icon"></i>
@@ -105,27 +153,27 @@
   <div class="col-6 col-md-3">
     <a href="{% url 'house_list' %}" class="kpi-card kpi-green">
       <div class="kpi-label">Available</div>
-      <div class="kpi-value" style="color:#16a34a;">{{ available_houses }}</div>
+      <div class="kpi-value" style="color:#16a34a;">${ s.available_houses }</div>
       <div class="kpi-sub">Ready to allocate</div>
-      <div class="occ-bar"><div class="occ-fill" style="width:{% if total_houses %}{% widthratio available_houses total_houses 100 %}{% else %}0{% endif %}%; background:#16a34a;"></div></div>
+      <div class="occ-bar"><div class="occ-fill" :style="`width:${s.total_houses ? Math.round(s.available_houses/s.total_houses*100) : 0}%; background:#16a34a;`"></div></div>
       <i class="bi bi-house-check kpi-icon"></i>
     </a>
   </div>
   <div class="col-6 col-md-3">
     <a href="{% url 'housed_list' %}" class="kpi-card kpi-red">
       <div class="kpi-label">Occupied</div>
-      <div class="kpi-value" style="color:#dc2626;">{{ occupied_houses }}</div>
+      <div class="kpi-value" style="color:#dc2626;">${ s.occupied_houses }</div>
       <div class="kpi-sub">Houses with residents</div>
-      <div class="occ-bar"><div class="occ-fill" style="width:{% if total_houses %}{% widthratio occupied_houses total_houses 100 %}{% else %}0{% endif %}%; background:#dc2626;"></div></div>
+      <div class="occ-bar"><div class="occ-fill" :style="`width:${s.total_houses ? Math.round(s.occupied_houses/s.total_houses*100) : 0}%; background:#dc2626;`"></div></div>
       <i class="bi bi-house-x kpi-icon"></i>
     </a>
   </div>
   <div class="col-6 col-md-3">
     <a href="{% url 'application_list' %}?status=approved" class="kpi-card kpi-amber">
       <div class="kpi-label">Awaiting House</div>
-      <div class="kpi-value" style="color:#d97706;">{{ pending_allocations }}</div>
+      <div class="kpi-value" style="color:#d97706;">${ s.pending_allocations }</div>
       <div class="kpi-sub">Approved, not yet housed</div>
-      <div class="occ-bar"><div class="occ-fill" style="width:{% if approved_applications %}{% widthratio pending_allocations approved_applications 100 %}{% else %}0{% endif %}%; background:#d97706;"></div></div>
+      <div class="occ-bar"><div class="occ-fill" :style="`width:${s.approved_applications ? Math.round(s.pending_allocations/s.approved_applications*100) : 0}%; background:#d97706;`"></div></div>
       <i class="bi bi-person-exclamation kpi-icon"></i>
     </a>
   </div>
@@ -136,7 +184,7 @@
   <div class="col-6 col-md-3">
     <a href="{% url 'application_list' %}" class="kpi-card kpi-blue">
       <div class="kpi-label">Applications</div>
-      <div class="kpi-value">{{ total_applications }}</div>
+      <div class="kpi-value">${ s.total_applications }</div>
       <div class="kpi-sub">All submissions</div>
       <i class="bi bi-file-earmark-text kpi-icon"></i>
     </a>
@@ -144,23 +192,23 @@
   <div class="col-6 col-md-3">
     <a href="{% url 'application_list' %}?status=pending" class="kpi-card kpi-amber">
       <div class="kpi-label">Pending Review</div>
-      <div class="kpi-value" style="color:#d97706;">{{ pending_applications }}</div>
+      <div class="kpi-value" style="color:#d97706;">${ s.pending_applications }</div>
       <div class="kpi-sub">Need attention</div>
       <i class="bi bi-hourglass-split kpi-icon"></i>
     </a>
   </div>
   <div class="col-6 col-md-3">
     <a href="{% url 'user_management' %}" class="kpi-card kpi-purple">
-      <div class="kpi-label">Staff Accounts</div>
-      <div class="kpi-value" style="color:#7c3aed;">{{ total_staff }}</div>
-      <div class="kpi-sub">Admin + Incharge</div>
-      <i class="bi bi-shield-person kpi-icon"></i>
+      <div class="kpi-label">User Accounts</div>
+      <div class="kpi-value" style="color:#7c3aed;">${ s.total_staff }</div>
+      <div class="kpi-sub">Registered Users</div>
+      <i class="bi bi-person-badge kpi-icon"></i>
     </a>
   </div>
   <div class="col-6 col-md-3">
     <a href="{% url 'housed_list' %}" class="kpi-card kpi-slate">
       <div class="kpi-label">Beneficiaries</div>
-      <div class="kpi-value" style="color:#475569;">{{ total_beneficiaries }}</div>
+      <div class="kpi-value" style="color:#475569;">${ s.total_beneficiaries }</div>
       <div class="kpi-sub">Registered applicants</div>
       <i class="bi bi-people-fill kpi-icon"></i>
     </a>
@@ -260,8 +308,7 @@
         <a href="{% url 'housed_list' %}" style="font-size:.75rem;color:#0038A8;text-decoration:none;">View all →</a>
       </div>
       <div class="chart-body p-0">
-        {% if recent_allocations %}
-        <table class="table mb-0">
+        <table id="allocTable" class="table mb-0 w-100">
           <thead style="background:#f8fafc;">
             <tr>
               <th style="font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;border:none;padding:.65rem .9rem;">House</th>
@@ -278,130 +325,306 @@
               <td class="text-muted">{{ a.allocated_by.get_full_name|default:a.allocated_by.username }}</td>
               <td style="color:#94a3b8;font-size:.78rem;">{{ a.date|date:"M d, Y" }}</td>
             </tr>
+            {% empty %}
+            <tr><td colspan="4" class="text-center py-4 text-muted">No allocations recorded yet.</td></tr>
             {% endfor %}
           </tbody>
         </table>
-        {% else %}
-        <div class="d-flex flex-column align-items-center justify-content-center py-5 text-muted">
-          <i class="bi bi-clock-history" style="font-size:2rem;opacity:.3;"></i>
-          <small class="mt-2">No allocations recorded yet.</small>
-        </div>
-        {% endif %}
       </div>
     </div>
   </div>
 
 </div>
+</div>{# end #dashboard-app #}
 {% endblock %}
 
 {% block extra_js %}
 <script>
-const BLUE   = '#0038A8';
-const GREEN  = '#16a34a';
-const RED    = '#dc2626';
-const AMBER  = '#d97706';
-const SLATE  = '#94a3b8';
-const LIGHT_GREEN = '#dcfce7';
-const LIGHT_RED   = '#fee2e2';
+// ── Vue 3: mounts first, then initialises Chart.js inside onMounted ───────
+const { createApp, reactive, ref, onMounted } = Vue;
 
-Chart.defaults.font.family = "'Segoe UI', sans-serif";
-Chart.defaults.plugins.legend.display = false;
+createApp({
+  delimiters: ['${', '}'],
+  setup() {
+    const s = reactive(
+      JSON.parse(document.getElementById('initial-stats').textContent)
+    );
+    const refreshing  = ref(false);
+    const lastUpdated = ref('');
+    let secondsAgo    = 0;
 
-// ── Donut: Housing Status ──────────────────────────────────────────
-new Chart(document.getElementById('housingDonut'), {
-  type: 'doughnut',
-  data: {
-    labels: ['Available', 'Occupied'],
-    datasets: [{
-      data: [{{ available_houses }}, {{ occupied_houses }}],
-      backgroundColor: [GREEN, RED],
-      borderColor: '#fff', borderWidth: 3,
-      hoverOffset: 6,
-    }]
+    function fmtAgo(sec) {
+      if (sec < 5)  return 'Updated just now';
+      if (sec < 60) return `Updated ${sec}s ago`;
+      return `Updated ${Math.floor(sec / 60)}m ago`;
+    }
+
+    async function refresh(manual = false) {
+      if (refreshing.value) return;
+      refreshing.value = true;
+      try {
+        const data = await fetch('{% url "api_dashboard_stats" %}', {
+          headers: { 'X-Requested-With': 'XMLHttpRequest' },
+          cache: 'no-store',
+        }).then(r => r.json());
+        Object.assign(s, data);
+        secondsAgo = 0;
+        lastUpdated.value = fmtAgo(0);
+      } catch (_) {
+        lastUpdated.value = 'Could not reach server';
+      } finally {
+        refreshing.value = false;
+      }
+    }
+
+    onMounted(() => {
+      secondsAgo = 0;
+      lastUpdated.value = fmtAgo(0);
+
+      setInterval(() => { secondsAgo++; lastUpdated.value = fmtAgo(secondsAgo); }, 1_000);
+      setInterval(() => refresh(), 15_000);
+
+      // Initialise Chart.js AFTER Vue has finished its first render
+      initCharts();
+    });
+
+    return { s, refreshing, lastUpdated, refresh };
   },
-  options: {
-    cutout: '72%',
-    plugins: { tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.parsed}` } } },
-    animation: { animateRotate: true, duration: 800 },
-  }
-});
+}).mount('#dashboard-app');
 
-// ── Donut: Application Status ──────────────────────────────────────
-new Chart(document.getElementById('appDonut'), {
-  type: 'doughnut',
-  data: {
-    labels: ['Pending', 'Approved', 'Rejected'],
-    datasets: [{
-      data: [{{ pending_applications }}, {{ approved_applications }}, {{ rejected_applications }}],
-      backgroundColor: [AMBER, GREEN, SLATE],
-      borderColor: '#fff', borderWidth: 3,
-      hoverOffset: 6,
-    }]
-  },
-  options: {
-    cutout: '72%',
-    plugins: { tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.parsed}` } } },
-    animation: { animateRotate: true, duration: 800 },
-  }
-});
+// ── Chart.js — called from onMounted so canvas nodes are fully settled ────
+function initCharts() {
+  const BLUE  = '#0038A8';
+  const GREEN = '#16a34a';
+  const RED   = '#dc2626';
+  const AMBER = '#d97706';
+  const SLATE = '#94a3b8';
 
-// ── Bar: Site Comparison ───────────────────────────────────────────
-new Chart(document.getElementById('siteBar'), {
-  type: 'bar',
-  data: {
-    labels: ['Site 1 – Old Poblacion', 'Site 2 – Washington'],
-    datasets: [
-      {
-        label: 'Available',
-        data: [{{ s1_avail }}, {{ s2_avail }}],
-        backgroundColor: '#dcfce7', borderColor: GREEN,
-        borderWidth: 1.5, borderRadius: 6,
+  Chart.defaults.font.family = "'Segoe UI', sans-serif";
+  Chart.defaults.plugins.legend.display = false;
+
+  // Donut: Housing Status
+  (function() {
+    var realAvail = {{ available_houses }};
+    var realOcc   = {{ occupied_houses }};
+    var total     = realAvail + realOcc;
+    var realData  = [realAvail, realOcc];
+
+    // Enforce a minimum 8% visual arc for any non-zero slice so it stays visible
+    var MIN_FRAC = 0.08;
+    var dispData = [realAvail, realOcc];
+    if (total > 0) {
+      if (realOcc > 0 && realOcc / total < MIN_FRAC) {
+        var vOcc  = Math.round(total * MIN_FRAC);
+        dispData = [total - vOcc, vOcc];
+      } else if (realAvail > 0 && realAvail / total < MIN_FRAC) {
+        var vAvail = Math.round(total * MIN_FRAC);
+        dispData = [vAvail, total - vAvail];
+      }
+    }
+
+    new Chart(document.getElementById('housingDonut'), {
+      type: 'doughnut',
+      data: {
+        labels: ['Available', 'Occupied'],
+        datasets: [{
+          data: dispData,
+          backgroundColor: [GREEN, RED],
+          borderColor: '#fff', borderWidth: 3,
+          hoverOffset: 8,
+          offset: [0, realOcc > 0 ? 8 : 0],
+        }]
       },
-      {
-        label: 'Occupied',
-        data: [{{ s1_occ }}, {{ s2_occ }}],
-        backgroundColor: '#fee2e2', borderColor: RED,
-        borderWidth: 1.5, borderRadius: 6,
-      },
-    ]
-  },
-  options: {
-    responsive: true,
-    plugins: {
-      legend: { display: true, position: 'bottom', labels: { font: { size: 11 }, boxWidth: 12, padding: 12 } },
-    },
-    scales: {
-      x: { grid: { display: false }, ticks: { font: { size: 11 } } },
-      y: { beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { precision: 0, font: { size: 11 } } }
-    },
-    animation: { duration: 700 },
-  }
-});
+      options: {
+        cutout: '72%',
+        plugins: {
+          tooltip: {
+            callbacks: {
+              label: function(ctx) {
+                return ' ' + ctx.label + ': ' + realData[ctx.dataIndex];
+              }
+            }
+          }
+        },
+        animation: {
+          animateRotate: true, duration: 800,
+          onComplete: function() {
+            var ctx  = this.ctx;
+            var meta = this.getDatasetMeta(0);
+            ctx.save();
+            ctx.font = 'bold 10px "Segoe UI", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            meta.data.forEach(function(arc, i) {
+              var val = realData[i];
+              if (!val) return;
+              var mid = arc.startAngle + (arc.endAngle - arc.startAngle) / 2;
+              var r   = (arc.innerRadius + arc.outerRadius) / 2;
+              ctx.fillStyle = '#fff';
+              ctx.fillText(val, arc.x + r * Math.cos(mid), arc.y + r * Math.sin(mid));
+            });
+            ctx.restore();
+          }
+        },
+      }
+    });
+  })();
 
-// ── Line: Monthly Allocations ──────────────────────────────────────
-{% if monthly_data_json != '[]' %}
-new Chart(document.getElementById('allocTrend'), {
-  type: 'bar',
-  data: {
-    labels: {{ monthly_labels_json|safe }},
-    datasets: [{
-      label: 'Allocations',
-      data: {{ monthly_data_json|safe }},
-      backgroundColor: 'rgba(0,56,168,.12)',
-      borderColor: BLUE,
-      borderWidth: 2, borderRadius: 6,
-    }]
-  },
-  options: {
-    responsive: true,
-    plugins: { legend: { display: false } },
-    scales: {
-      x: { grid: { display: false }, ticks: { font: { size: 11 } } },
-      y: { beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { precision: 0, font: { size: 11 } } }
+  // Donut: Application Status
+  (function() {
+    var realPending  = {{ pending_applications }};
+    var realApproved = {{ approved_applications }};
+    var realRejected = {{ rejected_applications }};
+    var realData     = [realPending, realApproved, realRejected];
+    var total        = realPending + realApproved + realRejected;
+
+    // Enforce minimum 8% visual arc for any non-zero slice
+    var MIN_FRAC = 0.08;
+    var dispData = realData.slice();
+    if (total > 0) {
+      var minVal = Math.round(total * MIN_FRAC);
+      dispData = realData.map(function(v) { return v > 0 && v < minVal ? minVal : v; });
+      // Re-normalise so display total stays consistent (shrink the largest slice)
+      var dispTotal = dispData.reduce(function(a, b) { return a + b; }, 0);
+      var excess = dispTotal - total;
+      if (excess > 0) {
+        var maxIdx = dispData.indexOf(Math.max.apply(null, dispData));
+        dispData[maxIdx] -= excess;
+      }
+    }
+
+    new Chart(document.getElementById('appDonut'), {
+      type: 'doughnut',
+      data: {
+        labels: ['Pending', 'Approved', 'Rejected'],
+        datasets: [{
+          data: dispData,
+          backgroundColor: [AMBER, GREEN, SLATE],
+          borderColor: '#fff', borderWidth: 3, hoverOffset: 6,
+        }]
+      },
+      options: {
+        cutout: '72%',
+        plugins: {
+          tooltip: {
+            callbacks: {
+              label: function(ctx) {
+                return ' ' + ctx.label + ': ' + realData[ctx.dataIndex];
+              }
+            }
+          }
+        },
+        animation: {
+          animateRotate: true, duration: 800,
+          onComplete: function() {
+            var ctx  = this.ctx;
+            var meta = this.getDatasetMeta(0);
+            ctx.save();
+            ctx.font = 'bold 10px "Segoe UI", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            meta.data.forEach(function(arc, i) {
+              var val = realData[i];
+              if (!val) return;
+              var mid = arc.startAngle + (arc.endAngle - arc.startAngle) / 2;
+              var r   = (arc.innerRadius + arc.outerRadius) / 2;
+              ctx.fillStyle = '#fff';
+              ctx.fillText(val, arc.x + r * Math.cos(mid), arc.y + r * Math.sin(mid));
+            });
+            ctx.restore();
+          }
+        },
+      }
+    });
+  })();
+
+  // Bar: Site Comparison
+  new Chart(document.getElementById('siteBar'), {
+    type: 'bar',
+    data: {
+      labels: ['Site 1 – Old Poblacion', 'Site 2 – Washington'],
+      datasets: [
+        { label: 'Available', data: [{{ s1_avail }}, {{ s2_avail }}], backgroundColor: '#86efac', borderColor: GREEN, borderWidth: 1.5, borderRadius: 6, minBarLength: 6 },
+        { label: 'Occupied',  data: [{{ s1_occ }},   {{ s2_occ }}],   backgroundColor: '#fca5a5', borderColor: RED,   borderWidth: 1.5, borderRadius: 6, minBarLength: 6 },
+      ]
     },
-    animation: { duration: 700 },
-  }
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { display: true, position: 'bottom', labels: { font: { size: 11 }, boxWidth: 12, padding: 12 } },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y}` } },
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { font: { size: 11 } } },
+        y: { beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { precision: 0, font: { size: 11 } } }
+      },
+      animation: {
+        duration: 700,
+        onComplete: function() {
+          var ctx = this.ctx;
+          ctx.save();
+          ctx.font = 'bold 11px "Segoe UI", sans-serif';
+          ctx.fillStyle = '#475569';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'bottom';
+          this.data.datasets.forEach(function(dataset, i) {
+            var meta = this.getDatasetMeta(i);
+            meta.data.forEach(function(bar, j) {
+              var val = dataset.data[j];
+              if (val > 0) ctx.fillText(val, bar.x, bar.y - 3);
+            });
+          }, this);
+          ctx.restore();
+        }
+      },
+    }
+  });
+
+  // Bar: Monthly Allocations
+  new Chart(document.getElementById('allocTrend'), {
+    type: 'bar',
+    data: {
+      labels: {{ monthly_labels_json|safe }},
+      datasets: [{
+        label: 'Allocations',
+        data: {{ monthly_data_json|safe }},
+        backgroundColor: 'rgba(0,56,168,.12)',
+        borderColor: BLUE,
+        borderWidth: 2, borderRadius: 6,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { display: false }, ticks: { font: { size: 11 } } },
+        y: { beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { precision: 0, font: { size: 11 } } }
+      },
+      animation: { duration: 700 },
+    }
+  });
+}
+</script>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/responsive/2.5.0/js/dataTables.responsive.min.js"></script>
+<script src="https://cdn.datatables.net/responsive/2.5.0/js/responsive.bootstrap5.min.js"></script>
+<script>
+$(document).ready(function () {
+  $('#allocTable').DataTable({
+    responsive: true,
+    order: [[3, 'desc']],
+    pageLength: 8,
+    lengthMenu: [8, 15, 25, 50],
+    searching: false,
+    language: {
+      lengthMenu: 'Show _MENU_ entries',
+      info: 'Showing _START_–_END_ of _TOTAL_ allocations',
+      infoEmpty: 'No allocations recorded yet.',
+      paginate: { previous: '‹', next: '›' },
+    },
+  });
 });
-{% endif %}
 </script>
 {% endblock %}

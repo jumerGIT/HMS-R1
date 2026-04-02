@@ -119,14 +119,14 @@
     <p>All donated houses in Barangay Housing Village</p>
   </div>
   <div class="d-flex gap-2 flex-wrap">
-    <a href="{% url 'add_house' %}" class="btn btn-primary d-flex align-items-center gap-2"
+    <!-- <a href="{% url 'add_house' %}" class="btn btn-primary d-flex align-items-center gap-2"
        style="border-radius:9px; font-size:.875rem; font-weight:600;">
       <i class="bi bi-plus-circle"></i>Add House
     </a>
     <a href="{% url 'import_houses_csv' %}" class="btn btn-outline-primary d-flex align-items-center gap-2"
        style="border-radius:9px; font-size:.875rem; font-weight:600;">
       <i class="bi bi-file-earmark-arrow-up"></i>Import CSV
-    </a>
+    </a> -->
     <a href="{% url 'map' %}" class="btn btn-light d-flex align-items-center gap-2"
        style="border-radius:9px; font-size:.875rem; font-weight:600;">
       <i class="bi bi-map"></i>Village Map
@@ -168,9 +168,9 @@
           <td class="text-muted" style="font-size:.78rem;">{{ forloop.counter }}</td>
           <td><span class="house-no">{{ house.house_number }}</span></td>
           <td>
-            <span class="house-status house-status-{{ house.status }}">
+            <span class="house-status house-status-{{ house.effective_status|default:house.status }}">
               <i class="bi bi-circle-fill" style="font-size:.4rem;"></i>
-              {{ house.get_status_display }}
+              {{ house.effective_status|default:house.status|title }}
             </span>
           </td>
           <td>
@@ -187,6 +187,7 @@
           </td>
         </tr>
         {% endfor %}
+
       </tbody>
     </table>
   </div>
@@ -209,9 +210,9 @@
           <td class="text-muted" style="font-size:.78rem;">{{ forloop.counter }}</td>
           <td><span class="house-no">{{ house.house_number }}</span></td>
           <td>
-            <span class="house-status house-status-{{ house.status }}">
+            <span class="house-status house-status-{{ house.effective_status|default:house.status }}">
               <i class="bi bi-circle-fill" style="font-size:.4rem;"></i>
-              {{ house.get_status_display }}
+              {{ house.effective_status|default:house.status|title }}
             </span>
           </td>
           <td>
@@ -228,6 +229,7 @@
           </td>
         </tr>
         {% endfor %}
+
       </tbody>
     </table>
   </div>
@@ -269,7 +271,7 @@
 // ── DataTables ──────────────────────────────────────────────────────────
 const dtOptions = {
   dom: "<'dt-top'lf><'dt-buttons mb-2'B><'table-responsive'tr><'dt-bottom'ip>",
-  pageLength: 25,
+  pageLength: 10,
   lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, 'All']],
   order: [[1, 'asc']],
   columnDefs: [{ orderable: false, targets: [0] }],

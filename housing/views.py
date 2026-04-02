@@ -3,6 +3,9 @@ Template-based views for the Housing Management System.
 Role checks are enforced with decorators and explicit redirects.
 """
 import base64
+import re
+import secrets
+import string
 import uuid
 from io import BytesIO
 
@@ -19,7 +22,68 @@ from django.views.generic import ListView, DetailView, UpdateView
 from django.contrib.auth.mixins import LoginRequiredMixin
 
 from .forms import AddHouseForm, ApplicationForm, RegisterForm, ReviewApplicationForm
-from .models import AllocationHistory, Application, CustomUser, House, HouseholdMember, SendingArea
+from .models import ActivityLog, AllocationHistory, Application, CustomUser, House, HouseholdMember, SendingArea
+
+
+# ---------------------------------------------------------------------------
+# Activity logging helper
+# ---------------------------------------------------------------------------
+def _get_client_ip(request):
+    x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+    if x_forwarded_for:
+        return x_forwarded_for.split(',')[0].strip()
+    return request.META.get('REMOTE_ADDR')
+
+
+def _parse_member_bdate(raw):
+    """
+    Parse and validate a member birthdate string (YYYY-MM-DD).
+    Returns a date object, or None if blank.
+    Raises ValueError with a human-readable message if invalid.
+    """
+    from datetime import date as _date
+    if not raw:
+        return None
+    try:
+        from datetime import datetime as _dt
+        d = _dt.strptime(raw.strip(), '%Y-%m-%d').date()
+    except ValueError:
+        raise ValueError(f'Invalid date format: "{raw}".')
+    if d.year < 1900:
+        raise ValueError('Birthdate year cannot be before 1900.')
+    if d > _date.today():
+        raise ValueError('Birthdate cannot be in the future.')
+    return d
+
+
+def _normalize_ph_phone(raw):
+    """
+    Normalize any PH phone string to +63XXXXXXXXXX.
+    Returns the original string unchanged if it doesn't match the PH format,
+    so optional phone fields don't hard-fail on unexpected values.
+    """
+    import re as _re
+    if not raw:
+        return ''
+    digits = _re.sub(r'[\s\-\(\)\.]', '', raw)
+    if digits.startswith('+63'):
+        digits = digits[3:]
+    elif digits.startswith('0'):
+        digits = digits[1:]
+    if _re.match(r'^[2-9]\d{9}$', digits):
+        return f'+63{digits}'
+    return raw
+
+
+def log_activity(request, action, description):
+    """Record a user action to the ActivityLog table."""
+    user = request.user if request.user.is_authenticated else None
+    ActivityLog.objects.create(
+        user=user,
+        action=action,
+        description=description,
+        ip_address=_get_client_ip(request),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -50,12 +114,16 @@ def login_view(request):
         return redirect('dashboard')
     form = AuthenticationForm(request, data=request.POST or None)
     if request.method == 'POST' and form.is_valid():
-        login(request, form.get_user())
+        user = form.get_user()
+        login(request, user)
+        log_activity(request, 'login', f'User "{user.username}" logged in.')
         return redirect('dashboard')
     return render(request, 'housing/login.html', {'form': form})
 
 
 def logout_view(request):
+    if request.user.is_authenticated:
+        log_activity(request, 'logout', f'User "{request.user.username}" logged out.')
     logout(request)
     return redirect('login')
 
@@ -68,6 +136,7 @@ def register_view(request):
     if request.method == 'POST' and form.is_valid():
         user = form.save()
         login(request, user)
+        log_activity(request, 'register', f'New applicant registered: "{user.username}" ({user.get_full_name()}).')
         messages.success(request, f'Welcome, {user.first_name}! Your applicant account has been created.')
         return redirect('dashboard')
     return render(request, 'housing/register.html', {'form': form})
@@ -114,6 +183,7 @@ def change_password(request):
                 user.must_change_password = False
                 user.save()
                 login(request, user)
+                log_activity(request, 'change_password', f'User "{user.username}" changed their password.')
                 messages.success(request, 'Password updated successfully.')
                 return redirect('dashboard')
     return render(request, 'housing/change_password.html', {'error': error, 'forced': forced})
@@ -125,7 +195,7 @@ def change_password(request):
 @role_required('admin')
 def admin_dashboard(request):
     import json as _json
-    from datetime import date, timedelta
+    from datetime import date
     from django.db.models.functions import TruncMonth
 
     total_houses     = House.objects.count()
@@ -137,6 +207,7 @@ def admin_dashboard(request):
     s2_avail = House.objects.filter(site=2, status='available').count()
     s2_occ   = House.objects.filter(site=2, status='occupied').count()
 
+
     total_applications    = Application.objects.count()
     pending_applications  = Application.objects.filter(status='pending').count()
     approved_applications = Application.objects.filter(status='approved').count()
@@ -145,17 +216,34 @@ def admin_dashboard(request):
         status='approved', applicant__allocated_house__isnull=True
     ).count()
 
-    six_months_ago = date.today().replace(day=1) - timedelta(days=150)
+    # Build the last 6 calendar months (current month + 5 prior), oldest first
+    today = date.today()
+    months = []
+    for i in range(5, -1, -1):
+        m, y = today.month - i, today.year
+        while m <= 0:
+            m += 12
+            y -= 1
+        months.append(date(y, m, 1))
+
     monthly_qs = (
         AllocationHistory.objects
-        .filter(date__gte=six_months_ago)
+        .filter(date__gte=months[0])
         .annotate(month=TruncMonth('date'))
         .values('month')
         .annotate(count=Count('id'))
         .order_by('month')
     )
-    monthly_labels = [row['month'].strftime('%b %Y') for row in monthly_qs]
-    monthly_data   = [row['count'] for row in monthly_qs]
+    # TruncMonth returns datetime on Postgres; normalise to date(y, m, 1) as key
+    monthly_dict = {}
+    for row in monthly_qs:
+        key = row['month']
+        if hasattr(key, 'date'):   # datetime → date
+            key = key.date()
+        monthly_dict[key.replace(day=1)] = row['count']
+
+    monthly_labels = [m.strftime('%b %Y') for m in months]
+    monthly_data   = [monthly_dict.get(m, 0) for m in months]
 
     context = {
         'total_houses': total_houses,
@@ -174,7 +262,7 @@ def admin_dashboard(request):
         'monthly_data_json': _json.dumps(monthly_data),
         'recent_allocations': AllocationHistory.objects.select_related(
             'house', 'beneficiary', 'allocated_by'
-        ).order_by('-date')[:8],
+        ).order_by('-date'),
     }
     return render(request, 'housing/dashboard_admin.html', context)
 
@@ -194,6 +282,7 @@ def housing_dashboard(request):
     s1_occ   = House.objects.filter(site=1, status='occupied').count()
     s2_avail = House.objects.filter(site=2, status='available').count()
     s2_occ   = House.objects.filter(site=2, status='occupied').count()
+
     pending_allocations = Application.objects.filter(
         status='approved', applicant__allocated_house__isnull=True,
     ).count()
@@ -351,7 +440,14 @@ def member_update_name(request, pk):
 # ---------------------------------------------------------------------------
 @role_required('admin', 'housing_incharge')
 def house_list(request):
-    qs = House.objects.select_related('allocated_to').all()
+    from django.db.models import Case, When, Value, CharField
+    qs = House.objects.select_related('allocated_to').annotate(
+        effective_status=Case(
+            When(allocated_to__isnull=True, then=Value('available')),
+            default=Value('occupied'),
+            output_field=CharField()
+        )
+    )
     site1 = qs.filter(site=1)
     site2 = qs.filter(site=2)
     return render(request, 'housing/house_list.html', {
@@ -359,9 +455,10 @@ def house_list(request):
         'site2_houses': site2,
         'site1_total': site1.count(),
         'site2_total': site2.count(),
-        'site1_available': site1.filter(status='available').count(),
-        'site2_available': site2.filter(status='available').count(),
+        'site1_available': site1.filter(effective_status='available').count(),
+        'site2_available': site2.filter(effective_status='available').count(),
     })
+
 
 
 # ---------------------------------------------------------------------------
@@ -371,6 +468,9 @@ def house_list(request):
 def house_detail_json(request, pk):
     """Return house details + resident info as JSON for the detail panel."""
     house = get_object_or_404(House, pk=pk)
+    
+    # Effective status based on allocated_to presence
+    effective_status = 'available' if house.allocated_to is None else 'occupied'
 
     resident = None
     members = []
@@ -400,12 +500,14 @@ def house_detail_json(request, pk):
         'house_number': house.house_number,
         'site': house.site,
         'status': house.status,
+        'effective_status': effective_status,
         'status_display': house.get_status_display(),
         'svg_id': house.svg_id,
         'allocation_date': house.allocation_date.strftime('%B %d, %Y') if house.allocation_date else None,
         'resident': resident,
         'members': members,
     })
+
 
 
 # ---------------------------------------------------------------------------
@@ -441,6 +543,7 @@ def add_house(request):
 
             house.svg_id = svg_id
             house.save()
+            log_activity(request, 'add_house', f'House added: "{house.house_number}" (Site {house.site}, SVG ID: {house.svg_id}).')
             messages.success(request, f'House "{house.house_number}" added successfully.')
             return redirect('house_list')
     else:
@@ -541,6 +644,7 @@ def import_houses_csv(request):
         }
 
         if added:
+            log_activity(request, 'import_houses', f'CSV import: {len(added)} house(s) added, {len(skipped)} skipped, {len(errors)} error(s).')
             messages.success(request, f'{len(added)} house(s) imported successfully.')
 
     return render(request, 'housing/import_houses.html', {'results': results})
@@ -570,12 +674,9 @@ def map_view(request):
 # ---------------------------------------------------------------------------
 @role_required('admin', 'beneficiary_incharge', 'housing_incharge')
 def application_list(request):
-    status_filter = request.GET.get('status', '')
+    # Always load all apps — filtering is done client-side via DataTables
     qs = Application.objects.select_related('applicant', 'reviewed_by').all()
-    if status_filter in ('pending', 'approved', 'rejected'):
-        qs = qs.filter(status=status_filter)
 
-    # Pre-fetch allocated houses so we can show "already allocated" state
     allocated_applicant_ids = set(
         House.objects.filter(status='occupied', allocated_to__isnull=False)
         .values_list('allocated_to_id', flat=True)
@@ -583,7 +684,6 @@ def application_list(request):
 
     return render(request, 'housing/application_list.html', {
         'applications': qs,
-        'status_filter': status_filter,
         'sending_areas': SendingArea.objects.all(),
         'allocated_applicant_ids': allocated_applicant_ids,
         'can_allocate': request.user.role in ('admin', 'housing_incharge'),
@@ -598,15 +698,21 @@ def allocate_house(request, pk):
     """Allocate an available house to an approved applicant."""
     application = get_object_or_404(Application, pk=pk)
 
+    is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+
     if request.method != 'POST':
         return redirect('application_list')
 
     if application.status != 'approved':
+        if is_ajax:
+            return JsonResponse({'ok': False, 'error': 'Only approved applications can be allocated a house.'}, status=400)
         messages.error(request, 'Only approved applications can be allocated a house.')
         return redirect('application_list')
 
     house_id = request.POST.get('house_id')
     if not house_id:
+        if is_ajax:
+            return JsonResponse({'ok': False, 'error': 'Please select a house.'}, status=400)
         messages.error(request, 'Please select a house.')
         return redirect('application_list')
 
@@ -614,6 +720,8 @@ def allocate_house(request, pk):
 
     # Check applicant doesn't already have a house
     if House.objects.filter(allocated_to=application.applicant).exists():
+        if is_ajax:
+            return JsonResponse({'ok': False, 'error': f'{application.full_name} already has an allocated house.'}, status=400)
         messages.warning(request, f'{application.full_name} already has an allocated house.')
         return redirect('application_list')
 
@@ -627,12 +735,48 @@ def allocate_house(request, pk):
         beneficiary=application.applicant,
         allocated_by=request.user,
     )
+    log_activity(
+        request, 'allocate_house',
+        f'House "{house.house_number}" (Site {house.site}) allocated to '
+        f'"{application.full_name or application.applicant.username}".',
+    )
+
+    is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+    if is_ajax:
+        return JsonResponse({
+            'ok': True,
+            'house_number': house.house_number,
+            'applicant_name': application.full_name,
+            'app_id': str(application.pk),
+        })
 
     messages.success(
         request,
         f'House "{house.house_number}" (Site {house.site}) allocated to {application.full_name}.'
     )
     return redirect('application_list')
+
+
+# ---------------------------------------------------------------------------
+# AJAX – Dashboard KPI stats (for Vue auto-refresh)
+# ---------------------------------------------------------------------------
+@role_required('admin')
+def api_dashboard_stats(request):
+    """JSON endpoint: live KPI counts for dashboard auto-refresh."""
+    return JsonResponse({
+        'total_houses': House.objects.count(),
+        'available_houses': House.objects.filter(status='available').count(),
+        'occupied_houses': House.objects.filter(status='occupied').count(),
+        'total_applications': Application.objects.count(),
+        'pending_applications': Application.objects.filter(status='pending').count(),
+        'approved_applications': Application.objects.filter(status='approved').count(),
+        'rejected_applications': Application.objects.filter(status='rejected').count(),
+        'pending_allocations': Application.objects.filter(
+            status='approved', applicant__allocated_house__isnull=True
+        ).count(),
+        'total_staff': CustomUser.objects.exclude(role='applicant').count(),
+        'total_beneficiaries': CustomUser.objects.filter(role='applicant').count(),
+    })
 
 
 # ---------------------------------------------------------------------------
@@ -652,18 +796,165 @@ def houses_by_site(request, site_number):
 def application_detail(request, pk):
     """View + review an application."""
     application = get_object_or_404(Application, pk=pk)
+
+    # Approved/rejected applications cannot be re-reviewed
+    if request.method == 'POST' and application.status in ('approved', 'rejected'):
+        messages.error(request, f'This application has already been {application.status} and cannot be changed.')
+        return redirect('application_detail', pk=pk)
+
     form = ReviewApplicationForm(request.POST or None, instance=application)
     if request.method == 'POST' and form.is_valid():
         reviewed = form.save(commit=False)
         reviewed.reviewed_by = request.user
         reviewed.review_date = timezone.now()
         reviewed.save()
+        log_activity(
+            request, 'review_application',
+            f'Application by "{application.full_name or application.applicant.username}" '
+            f'marked as {reviewed.get_status_display()}.',
+        )
         messages.success(request, f'Application status updated to {reviewed.get_status_display()}.')
         return redirect('application_list')
     return render(request, 'housing/application_detail.html', {
         'application': application,
         'form': form,
     })
+
+
+# ---------------------------------------------------------------------------
+# Walk-in Application Entry (Admin + Beneficiary Incharge)
+# ---------------------------------------------------------------------------
+def _generate_username(fname, lname):
+    """Generate a unique username from applicant name."""
+    base = re.sub(r'[^a-z0-9]', '', (fname[:1] + lname).lower())[:10] or 'applicant'
+    for _ in range(20):
+        candidate = f"{base}{secrets.randbelow(9000) + 1000}"
+        if not CustomUser.objects.filter(username=candidate).exists():
+            return candidate
+    return f"app{uuid.uuid4().hex[:8]}"
+
+
+def _generate_temp_password(length=10):
+    alphabet = string.ascii_letters + string.digits
+    return ''.join(secrets.choice(alphabet) for _ in range(length))
+
+
+@role_required('admin', 'beneficiary_incharge')
+def walkin_application(request):
+    """Staff encodes a walk-in applicant's application on their behalf."""
+    form = ApplicationForm()
+
+    if request.method == 'POST':
+        form = ApplicationForm(request.POST, request.FILES)
+
+        # Pull account fields directly from POST (not part of ApplicationForm)
+        fname     = request.POST.get('walkin_fname', '').strip()
+        lname     = request.POST.get('walkin_lname', '').strip()
+        email     = request.POST.get('walkin_email', '').strip()
+        phone     = request.POST.get('walkin_phone', '').strip()
+
+        errors = {}
+        if not fname:
+            errors['walkin_fname'] = 'First name is required.'
+        if not lname:
+            errors['walkin_lname'] = 'Last name is required.'
+
+        if not errors and form.is_valid():
+            temp_password = _generate_temp_password()
+            username      = _generate_username(fname, lname)
+
+            # Create the applicant user account
+            user = CustomUser.objects.create_user(
+                username=username,
+                password=temp_password,
+                first_name=fname,
+                last_name=lname,
+                email=email,
+                phone=_normalize_ph_phone(phone),
+                role='applicant',
+                must_change_password=True,
+            )
+
+            # Handle base64 photo/ID fields the same way my_application does
+            files = request.FILES.copy()
+
+            def inject_b64(post_key, field_name, prefix):
+                data = request.POST.get(post_key, '')
+                if data and data.startswith('data:image'):
+                    try:
+                        _, b64 = data.split(',', 1)
+                        img_bytes = base64.b64decode(b64)
+                        buf = BytesIO(img_bytes)
+                        buf.seek(0)
+                        files[field_name] = InMemoryUploadedFile(
+                            buf, 'ImageField',
+                            f'{prefix}_{user.pk}.jpg',
+                            'image/jpeg', len(img_bytes), None,
+                        )
+                    except Exception:
+                        pass
+
+            inject_b64('hh_image_data',  'hh_image',         'hh')
+            inject_b64('nid_front_data', 'national_id_front', 'nid_front')
+            inject_b64('nid_back_data',  'national_id_back',  'nid_back')
+
+            # Re-bind form with any injected files
+            if files:
+                form = ApplicationForm(request.POST, files)
+                form.is_valid()
+
+            app = form.save(commit=False)
+            app.applicant  = user
+            app.is_walkin  = True
+            app.entered_by = request.user
+            app.family_size = 1  # Will be updated below after members are saved
+            app.save()
+
+            # Save household members
+            member_count = int(request.POST.get('member_count', 0))
+            for i in range(member_count):
+                m_fname = request.POST.get(f'member_fname_{i}', '').strip()
+                m_lname = request.POST.get(f'member_lname_{i}', '').strip()
+                if m_fname and m_lname:
+                    try:
+                        member_bdate = _parse_member_bdate(request.POST.get(f'member_bdate_{i}', ''))
+                    except ValueError:
+                        member_bdate = None
+                    HouseholdMember.objects.create(
+                        application=app,
+                        fname=m_fname,
+                        mname=request.POST.get(f'member_mname_{i}', '').strip(),
+                        lname=m_lname,
+                        relationship=request.POST.get(f'member_relationship_{i}', 'other_relative'),
+                        bdate=member_bdate,
+                    )
+
+            # Update family_size = head + members
+            app.family_size = 1 + app.members.count()
+            app.save(update_fields=['family_size'])
+
+            log_activity(
+                request, 'walkin_entry',
+                f'Walk-in application entered for "{fname} {lname}" '
+                f'(username: {username}).',
+            )
+
+            return render(request, 'housing/walkin_application.html', {
+                'success': True,
+                'credentials': {
+                    'username': username,
+                    'password': temp_password,
+                    'full_name': f'{fname} {lname}',
+                },
+            })
+
+        return render(request, 'housing/walkin_application.html', {
+            'form': form,
+            'walkin_errors': errors,
+            'post': request.POST,
+        })
+
+    return render(request, 'housing/walkin_application.html', {'form': form})
 
 
 # ---------------------------------------------------------------------------
@@ -718,13 +1009,17 @@ def my_application(request):
                 fname = request.POST.get(f'member_fname_{i}', '').strip()
                 lname = request.POST.get(f'member_lname_{i}', '').strip()
                 if fname or lname:
+                    try:
+                        member_bdate = _parse_member_bdate(request.POST.get(f'member_bdate_{i}', ''))
+                    except ValueError:
+                        member_bdate = None
                     HouseholdMember.objects.create(
                         application=saved,
                         fname=fname,
                         mname=request.POST.get(f'member_mname_{i}', '').strip(),
                         lname=lname,
                         relationship=request.POST.get(f'member_relationship_{i}', 'other_relative'),
-                        bdate=request.POST.get(f'member_bdate_{i}') or None,
+                        bdate=member_bdate,
                     )
 
             # Auto-calculate family size: household head (1) + members
@@ -827,6 +1122,8 @@ def toggle_user_active(request, pk):
         return JsonResponse({'ok': False, 'error': 'You cannot deactivate your own account.'})
     user.is_active = not user.is_active
     user.save()
+    state = 'activated' if user.is_active else 'deactivated'
+    log_activity(request, 'toggle_user', f'User "{user.username}" {state}.')
     return JsonResponse({'ok': True, 'is_active': user.is_active})
 
 
@@ -836,7 +1133,10 @@ def create_staff_user(request):
     if request.method != 'POST':
         return JsonResponse({'ok': False}, status=405)
     import json, secrets, string
-    data = json.loads(request.body)
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, ValueError):
+        return JsonResponse({'ok': False, 'error': 'Invalid request data.'}, status=400)
 
     ALLOWED_ROLES = ('admin', 'housing_incharge', 'beneficiary_incharge')
     role = data.get('role', '')
@@ -858,13 +1158,17 @@ def create_staff_user(request):
         first_name=data.get('first_name', '').strip(),
         last_name=data.get('last_name', '').strip(),
         email=data.get('email', '').strip(),
-        phone=data.get('phone', '').strip(),
+        phone=_normalize_ph_phone(data.get('phone', '').strip()),
         role=role,
         is_active=True,
         must_change_password=True,
     )
     user.set_password(temp_password)
     user.save()
+    log_activity(
+        request, 'create_user',
+        f'Staff user created: "{user.username}" ({user.get_role_display()}).',
+    )
 
     return JsonResponse({
         'ok': True,
@@ -889,7 +1193,10 @@ def update_user(request, pk):
     if request.method != 'POST':
         return JsonResponse({'ok': False}, status=405)
     import json
-    data = json.loads(request.body)
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, ValueError):
+        return JsonResponse({'ok': False, 'error': 'Invalid request data.'}, status=400)
 
     user = get_object_or_404(CustomUser, pk=pk)
 
@@ -908,7 +1215,7 @@ def update_user(request, pk):
     user.first_name = data.get('first_name', user.first_name).strip()
     user.last_name  = data.get('last_name', user.last_name).strip()
     user.email      = data.get('email', user.email).strip()
-    user.phone      = data.get('phone', user.phone).strip()
+    user.phone      = _normalize_ph_phone(data.get('phone', user.phone).strip())
     user.role       = role
 
     password = data.get('password', '').strip()
@@ -920,6 +1227,7 @@ def update_user(request, pk):
         user.set_password(password)
 
     user.save()
+    log_activity(request, 'update_user', f'User "{user.username}" updated by admin.')
     return JsonResponse({
         'ok': True,
         'user': {
@@ -943,5 +1251,33 @@ def delete_user(request, pk):
     user = get_object_or_404(CustomUser, pk=pk)
     if user == request.user:
         return JsonResponse({'ok': False, 'error': 'You cannot delete your own account.'})
+    username_snapshot = user.username
+    role_snapshot = user.get_role_display()
     user.delete()
+    log_activity(request, 'delete_user', f'User "{username_snapshot}" ({role_snapshot}) deleted.')
     return JsonResponse({'ok': True})
+
+
+# ---------------------------------------------------------------------------
+# Activity Log (Admin only)
+# ---------------------------------------------------------------------------
+@role_required('admin')
+def activity_log_view(request):
+    """Display the full activity log. Admin eyes only."""
+    logs = ActivityLog.objects.select_related('user').order_by('-timestamp')
+
+    # Optional filters
+    action_filter = request.GET.get('action', '').strip()
+    user_filter   = request.GET.get('user', '').strip()
+
+    if action_filter:
+        logs = logs.filter(action=action_filter)
+    if user_filter:
+        logs = logs.filter(user__username__icontains=user_filter)
+
+    return render(request, 'housing/activity_log.html', {
+        'logs': logs,
+        'action_choices': ActivityLog.ACTION_CHOICES,
+        'action_filter': action_filter,
+        'user_filter': user_filter,
+    })

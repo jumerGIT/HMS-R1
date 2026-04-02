@@ -237,6 +237,16 @@ class Application(models.Model):
     review_date = models.DateTimeField(null=True, blank=True)
     notes       = models.TextField(blank=True, help_text='Reviewer notes')
 
+    # ── Walk-in tracking ───────────────────────────────────────────
+    is_walkin  = models.BooleanField(
+                    default=False,
+                    help_text='True when a staff member encoded this on behalf of a walk-in applicant')
+    entered_by = models.ForeignKey(
+                    CustomUser, null=True, blank=True,
+                    on_delete=models.SET_NULL,
+                    related_name='entered_applications',
+                    limit_choices_to={'role__in': ['admin', 'beneficiary_incharge']})
+
     class Meta:
         ordering = ['-submission_date']
         verbose_name = 'Application'
@@ -311,3 +321,46 @@ class AllocationHistory(models.Model):
 
     def __str__(self):
         return f"{self.house} → {self.beneficiary} on {self.date:%Y-%m-%d}"
+
+
+class ActivityLog(models.Model):
+    """
+    Records every significant user action for admin audit purposes.
+    Only admins can view this log.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
+    ACTION_CHOICES = [
+        ('login',            'Login'),
+        ('logout',           'Logout'),
+        ('register',         'Registration'),
+        ('change_password',  'Password Change'),
+        ('add_house',        'Add House'),
+        ('import_houses',    'Import Houses'),
+        ('allocate_house',   'Allocate House'),
+        ('review_application', 'Review Application'),
+        ('walkin_entry',     'Walk-in Entry'),
+        ('create_user',      'Create User'),
+        ('update_user',      'Update User'),
+        ('toggle_user',      'Toggle User Active'),
+        ('delete_user',      'Delete User'),
+    ]
+
+    user = models.ForeignKey(
+        CustomUser,
+        null=True, blank=True,
+        on_delete=models.SET_NULL,
+        related_name='activity_logs',
+    )
+    action = models.CharField(max_length=30, choices=ACTION_CHOICES)
+    description = models.TextField()
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    timestamp = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ['-timestamp']
+        verbose_name = 'Activity Log'
+        verbose_name_plural = 'Activity Logs'
+
+    def __str__(self):
+        return f"[{self.timestamp:%Y-%m-%d %H:%M}] {self.user} – {self.get_action_display()}"
