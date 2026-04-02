@@ -325,8 +325,6 @@
               <td class="text-muted">{{ a.allocated_by.get_full_name|default:a.allocated_by.username }}</td>
               <td style="color:#94a3b8;font-size:.78rem;">{{ a.date|date:"M d, Y" }}</td>
             </tr>
-            {% empty %}
-            <tr><td colspan="4" class="text-center py-4 text-muted">No allocations recorded yet.</td></tr>
             {% endfor %}
           </tbody>
         </table>
@@ -622,6 +620,7 @@ $(document).ready(function () {
       lengthMenu: 'Show _MENU_ entries',
       info: 'Showing _START_–_END_ of _TOTAL_ allocations',
       infoEmpty: 'No allocations recorded yet.',
+      emptyTable: 'No allocations recorded yet.',
       paginate: { previous: '‹', next: '›' },
     },
   });
