@@ -82,6 +82,9 @@ if _DATABASE_URL:
     DATABASES = {
         'default': dj_database_url.config(default=_DATABASE_URL, conn_max_age=600)
     }
+    # Fail fast if DB is unreachable (avoids hanging indefinitely at startup)
+    DATABASES['default'].setdefault('OPTIONS', {})
+    DATABASES['default']['OPTIONS']['connect_timeout'] = 10
 else:
     # Local development: SQLite
     DATABASES = {
