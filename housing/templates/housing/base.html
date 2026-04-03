@@ -776,6 +776,61 @@
   {% block content %}{% endblock %}
 </main>
 
+{% if user.is_authenticated %}
+<!-- ── Auto-logout warning modal ── -->
+<div class="modal fade" id="idleModal" data-bs-backdrop="static" data-bs-keyboard="false"
+     tabindex="-1" aria-labelledby="idleModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:400px">
+    <div class="modal-content" style="border-radius:16px;border:none;overflow:hidden;">
+
+      <div class="modal-header" style="background:#fff7ed;border-bottom:1px solid #fed7aa;padding:1.1rem 1.4rem .9rem;">
+        <div class="d-flex align-items-center gap-2">
+          <div style="width:36px;height:36px;border-radius:10px;background:#fff;
+                      box-shadow:0 1px 4px rgba(0,0,0,.1);display:flex;
+                      align-items:center;justify-content:center;flex-shrink:0;">
+            <i class="bi bi-clock-history" style="font-size:1.1rem;color:#ea580c;"></i>
+          </div>
+          <h6 class="modal-title mb-0 fw-700" id="idleModalLabel"
+              style="font-size:.95rem;color:#9a3412;">Session Expiring Soon</h6>
+        </div>
+      </div>
+
+      <div class="modal-body" style="padding:1.4rem;text-align:center;">
+        <p style="font-size:.9rem;color:#374151;margin-bottom:.4rem;">
+          You've been inactive for a while.
+        </p>
+        <p style="font-size:.85rem;color:#64748b;margin-bottom:1.25rem;">
+          You will be automatically logged out in
+        </p>
+        <div id="idleCountdown"
+             style="font-size:2.8rem;font-weight:800;color:#0038A8;
+                    line-height:1;margin-bottom:1.25rem;letter-spacing:-.02em;">
+          60
+        </div>
+        <p style="font-size:.78rem;color:#94a3b8;margin:0;">seconds</p>
+      </div>
+
+      <div class="modal-footer" style="border-top:1px solid #f1f5f9;
+           padding:.9rem 1.4rem;gap:.6rem;justify-content:center;">
+        <a href="{% url 'logout' %}" class="btn btn-sm"
+           style="background:#fee2e2;color:#dc2626;border:none;
+                  border-radius:8px;padding:.45rem 1.1rem;font-weight:600;
+                  font-size:.82rem;" data-no-loader>
+          <i class="bi bi-box-arrow-right me-1"></i>Log Out Now
+        </a>
+        <button type="button" id="idleStayBtn" class="btn btn-sm"
+                style="background:#0038A8;color:#fff;border:none;
+                       border-radius:8px;padding:.45rem 1.25rem;font-weight:600;
+                       font-size:.82rem;">
+          <i class="bi bi-check-circle me-1"></i>Stay Logged In
+        </button>
+      </div>
+
+    </div>
+  </div>
+</div>
+{% endif %}
+
 <footer>
   <div class="footer-inner">
     <span>
@@ -853,6 +908,59 @@
     showLoader('Loading…');
   });
 })();
+
+{% if user.is_authenticated %}
+/* ── Auto-logout after inactivity ── */
+(function () {
+  var IDLE_MS    = 30 * 60 * 1000;   // 30 min → trigger warning
+  var WARNING_MS = 60;                // seconds shown in countdown
+
+  var modal        = new bootstrap.Modal(document.getElementById('idleModal'));
+  var countdownEl  = document.getElementById('idleCountdown');
+  var stayBtn      = document.getElementById('idleStayBtn');
+  var idleTimer    = null;
+  var countTimer   = null;
+  var warningActive = false;
+
+  function resetIdle() {
+    if (warningActive) return;          // don't reset while warning is showing
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(startWarning, IDLE_MS);
+  }
+
+  function startWarning() {
+    warningActive = true;
+    var secs = WARNING_MS;
+    countdownEl.textContent = secs;
+    modal.show();
+
+    countTimer = setInterval(function () {
+      secs -= 1;
+      countdownEl.textContent = secs;
+      if (secs <= 0) {
+        clearInterval(countTimer);
+        window.location.href = '{% url "logout" %}';
+      }
+    }, 1000);
+  }
+
+  function cancelWarning() {
+    clearInterval(countTimer);
+    warningActive = false;
+    modal.hide();
+    resetIdle();
+  }
+
+  stayBtn.addEventListener('click', cancelWarning);
+
+  // Reset on any user activity
+  ['mousemove','mousedown','keydown','scroll','touchstart','click'].forEach(function (ev) {
+    document.addEventListener(ev, resetIdle, { passive: true });
+  });
+
+  resetIdle();   // start the first timer on page load
+})();
+{% endif %}
 </script>
 </body>
 </html>
