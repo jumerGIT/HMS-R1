@@ -7,6 +7,8 @@ from . import views
 urlpatterns = [
     # Health check
     path('health/', views.health, name='health'),
+    # TEMP: test 500 error page — remove after testing
+    path('test-500/', lambda r: 1/0, name='test_500'),
 
     # Auth
     path('', views.dashboard, name='home'),
