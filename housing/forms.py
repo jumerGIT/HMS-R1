@@ -126,6 +126,10 @@ class ApplicationForm(forms.ModelForm):
     """Form for applicants to submit/edit their application."""
     contact_no = PhilippinePhoneField(required=False, label='Contact Number')
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['hh_bdate'].required = True
+
     class Meta:
         model  = Application
         fields = [

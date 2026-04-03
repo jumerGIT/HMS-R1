@@ -104,11 +104,12 @@
             </div>
             <div class="col-sm-6">
               {% with f=form.hh_bdate %}
-              <label class="form-label fw-medium small">{{ f.label }}</label>
+              <label class="form-label fw-medium small">{{ f.label }} <span class="text-danger">*</span></label>
               <input type="date" name="{{ f.html_name }}" id="{{ f.id_for_label }}"
                      class="form-control{% if f.errors %} is-invalid{% endif %}"
                      value="{{ f.value|default:'' }}"
-                     min="1900-01-01" max="{% now 'Y-m-d' %}">
+                     min="1900-01-01" max="{% now 'Y-m-d' %}"
+                     required>
               {% for e in f.errors %}<div class="invalid-feedback">{{ e }}</div>{% endfor %}
               {% endwith %}
             </div>
