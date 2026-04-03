@@ -454,6 +454,34 @@
     .tbl-card { border:none; border-radius:12px; overflow:hidden;
       box-shadow:0 1px 3px rgba(0,0,0,.07),0 4px 16px rgba(0,0,0,.06); }
     .tbl-card .card-body { padding: 0; }
+
+    /* ── Page-loading overlay (form submit / navigation) ── */
+    #page-loader {
+      position: fixed; inset: 0; z-index: 10000;
+      background: rgba(0,0,0,.42);
+      backdrop-filter: blur(2px);
+      display: none; align-items: center; justify-content: center;
+    }
+    #page-loader.is-active { display: flex; }
+    .loader-box {
+      background: #fff; border-radius: 16px;
+      padding: 2rem 2.5rem; text-align: center;
+      box-shadow: 0 8px 32px rgba(0,0,0,.18);
+      display: flex; flex-direction: column; align-items: center; gap: .75rem;
+      min-width: 170px;
+    }
+    .loader-spinner {
+      width: 44px; height: 44px;
+      border: 4px solid #e2e8f0;
+      border-top-color: #0038A8;
+      border-radius: 50%;
+      animation: loader-spin .7s linear infinite;
+    }
+    @keyframes loader-spin { to { transform: rotate(360deg); } }
+    .loader-text {
+      font-size: .85rem; font-weight: 600;
+      color: #64748b; margin: 0; letter-spacing: .01em;
+    }
   </style>
 
   {% block extra_head %}{% endblock %}
@@ -517,6 +545,14 @@
   </style>
 </head>
 <body>
+
+<!-- ── Page-loading overlay ── -->
+<div id="page-loader" role="status" aria-live="polite" aria-label="Loading">
+  <div class="loader-box">
+    <div class="loader-spinner"></div>
+    <p class="loader-text" id="loader-msg">Loading…</p>
+  </div>
+</div>
 
 <!-- ── Page skeleton loader ── -->
 <div id="page-skeleton" aria-hidden="true">
@@ -756,6 +792,7 @@
 
 <script>
 (function () {
+  /* ── Skeleton: hide once DOM is ready ── */
   var sk = document.getElementById('page-skeleton');
   function hideSkeleton() {
     sk.classList.add('sk-hide');
@@ -766,6 +803,55 @@
   } else {
     hideSkeleton();
   }
+
+  /* ── Page-loading overlay ── */
+  var loader  = document.getElementById('page-loader');
+  var loaderMsg = document.getElementById('loader-msg');
+  var loaderTimer = null;
+
+  function showLoader(msg) {
+    loaderMsg.textContent = msg || 'Loading…';
+    loader.classList.add('is-active');
+    // Safety: auto-hide after 15 s so a broken request never locks the UI
+    clearTimeout(loaderTimer);
+    loaderTimer = setTimeout(hideLoader, 15000);
+  }
+
+  function hideLoader() {
+    clearTimeout(loaderTimer);
+    loader.classList.remove('is-active');
+  }
+
+  // Hide on back/forward navigation (page served from bfcache)
+  window.addEventListener('pageshow', function (e) {
+    if (e.persisted) hideLoader();
+  });
+
+  // Form submit → show "Processing…" (or button's data-loading-text)
+  document.addEventListener('submit', function (e) {
+    var form = e.target;
+    if (form.dataset.noLoader !== undefined) return;   // opt-out
+    var btn  = form.querySelector('[type="submit"]');
+    var msg  = (btn && btn.dataset.loadingText) ? btn.dataset.loadingText : 'Processing…';
+    showLoader(msg);
+  });
+
+  // Navigation links → show "Loading…"
+  document.addEventListener('click', function (e) {
+    var link = e.target.closest('a[href]');
+    if (!link) return;
+    var href = link.getAttribute('href') || '';
+    // Skip: hash-only, javascript:, external (different origin), _blank, Bootstrap triggers, opt-out
+    if (!href || href.charAt(0) === '#' || href.startsWith('javascript:')) return;
+    if (link.target === '_blank') return;
+    if (link.dataset.noLoader !== undefined) return;
+    if (link.dataset.bsToggle || link.dataset.bsDismiss || link.dataset.bsTarget) return;
+    try {
+      var url = new URL(href, window.location.href);
+      if (url.origin !== window.location.origin) return;
+    } catch (_) { return; }
+    showLoader('Loading…');
+  });
 })();
 </script>
 </body>
