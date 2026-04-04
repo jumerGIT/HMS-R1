@@ -150,6 +150,12 @@ LOGIN_URL = '/login/'
 LOGIN_REDIRECT_URL = '/dashboard/'
 LOGOUT_REDIRECT_URL = '/login/'
 
+# Session security
+# Expire session cookie when the browser is closed
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True
+# Also enforce a server-side max age of 8 hours (covers leaving browser open overnight)
+SESSION_COOKIE_AGE = 8 * 60 * 60
+
 # Django REST Framework
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
